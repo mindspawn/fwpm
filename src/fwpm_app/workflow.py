@@ -54,6 +54,9 @@ class Workflow:
         llm_outputs = self._run_llm_round(issues, filter_cfg)
         body = build_confluence_storage(
             jira_base_url=self.app_config.jira_base_url,
+            filter_id=filter_id,
+            filter_name=filter_details.get("name", ""),
+            total_issues=len(issues),
             issue_blocks=(
                 (
                     issue["key"],

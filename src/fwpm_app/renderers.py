@@ -8,19 +8,33 @@ import markdown
 
 
 def build_confluence_storage(
-    jira_base_url: str, issue_blocks: Iterable[Tuple[str, str, str, str | None, str]]
+    jira_base_url: str,
+    filter_id: str,
+    filter_name: str,
+    total_issues: int,
+    issue_blocks: Iterable[Tuple[str, str, str, str | None, str]],
 ) -> str:
     """
     Build Confluence storage-format HTML with sections per issue.
 
     Args:
         jira_base_url: Base URL for linking to issues.
+        filter_id: The JIRA filter identifier used.
+        filter_name: The JIRA filter name.
+        total_issues: Count of issues returned by the filter.
         issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url, generated_text)`.
     """
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    header = (
-        f"<p>Automated summary generated at {html.escape(timestamp)}."
-        " Review for accuracy before sharing broadly.</p>"
+    filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={html.escape(filter_id)}"
+    header = "".join(
+        [
+            f"<p>Automated summary generated at {html.escape(timestamp)}.</p>",
+            (
+                f"<p>Filter: <a href=\"{filter_url}\">{html.escape(filter_id)}</a> "
+                f"({html.escape(filter_name)}) • Issues returned: {total_issues}</p>"
+            ),
+            "<p>Review for accuracy before sharing broadly.</p>",
+        ]
     )
 
     sections = []
