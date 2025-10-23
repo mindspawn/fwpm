@@ -60,7 +60,7 @@ class DefaultIssueContentProvider:
             if self._should_ignore_comment(comment):
                 continue
             author = (comment.get("author") or {}).get("displayName", "Unknown")
-            body = self._clean_html(comment.get("body"))
+            body = self._extract_comment_body(comment)
             timestamp = self._format_timestamp(comment.get("created"))
             formatted.append(
                 f"- {timestamp} – {author}: {body or 'empty comment'}"
@@ -147,3 +147,44 @@ class DefaultIssueContentProvider:
 
         pattern = re.compile(r"\[~(?:accountid:)?(?P<identifier>[\w@\.\-]+)\]")
         return pattern.sub(repl, text)
+
+    def _extract_comment_body(self, comment: Dict) -> str:
+        body = comment.get("body")
+        if isinstance(body, str):
+            cleaned = self._clean_html(body)
+            if cleaned:
+                return cleaned
+        if isinstance(body, dict):
+            rendered = self._extract_adf_text(body)
+            if rendered:
+                return rendered
+        rendered_body = comment.get("renderedBody")
+        if isinstance(rendered_body, str):
+            rendered = self._clean_html(rendered_body)
+            if rendered:
+                return rendered
+        return self._clean_html(body)
+
+    def _extract_adf_text(self, node: Dict) -> str:
+        # Atlassian Document Format traversal (best-effort plain text)
+        parts: List[str] = []
+
+        def walk(element, parent_type: str = "") -> None:
+            if isinstance(element, dict):
+                elem_type = element.get("type")
+                if elem_type == "text":
+                    text = element.get("text", "")
+                    if text:
+                        parts.append(text)
+                else:
+                    for child in element.get("content", []) or []:
+                        walk(child, elem_type)
+                    if elem_type in {"paragraph", "heading", "listItem"}:
+                        parts.append("\n")
+            elif isinstance(element, list):
+                for child in element:
+                    walk(child, parent_type)
+
+        walk(node)
+        joined = "".join(parts).strip()
+        return self._clean_html(joined) if joined else ""
