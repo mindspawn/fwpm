@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 from typing import List, Tuple
 from urllib.parse import quote_plus
+
+from zoneinfo import ZoneInfo
 
 from .config import AppConfig, FilterConfig, parse_filter_description
 from .confluence_client import ConfluenceClient
@@ -13,6 +16,7 @@ from .llm_client import LLMClient
 from .renderers import build_confluence_storage
 
 logger = logging.getLogger(__name__)
+_SYSTEM_PROMPT = "You are a helpful assistant that summarizes Jira issues for engineering leadership."
 
 
 class Workflow:
@@ -118,9 +122,10 @@ class Workflow:
         for issue in issues:
             issue_text = self.issue_content_provider.build_issue_text(issue)
             logger.debug("Constructed issue text for %s", issue.get("key"))
+            user_prompt = self._build_user_prompt(filter_cfg, issue_text)
             response_text = self.llm_client.generate_completion(
-                system_prompt=filter_cfg.llm.prompt,
-                issue_text=issue_text,
+                system_prompt=_SYSTEM_PROMPT,
+                issue_text=user_prompt,
             )
             outputs.append((issue, response_text))
 
@@ -131,6 +136,16 @@ class Workflow:
             elapsed,
         )
         return outputs
+
+    def _build_user_prompt(self, filter_cfg: FilterConfig, issue_text: str) -> str:
+        now_pst = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M")
+        parts = [
+            filter_cfg.llm.prompt.strip(),
+            f"The current date and time is {now_pst} PST.",
+            "JIRA Extracted Text:",
+            issue_text.strip(),
+        ]
+        return "\n\n".join(part for part in parts if part)
 
     def _assignee_name(self, issue: dict) -> str:
         assignee = (issue.get("fields") or {}).get("assignee") or {}
