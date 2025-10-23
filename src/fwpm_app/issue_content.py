@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Dict, List, Protocol
 
 from bs4 import BeautifulSoup
+from zoneinfo import ZoneInfo
 
 
 class IssueContentProvider(Protocol):
@@ -47,7 +49,10 @@ class DefaultIssueContentProvider:
         for comment in comment_data:
             author = (comment.get("author") or {}).get("displayName", "Unknown")
             body = self._clean_html(comment.get("body"))
-            formatted.append(f"- {author}: {body or 'empty comment'}")
+            timestamp = self._format_timestamp(comment.get("created"))
+            formatted.append(
+                f"- {timestamp} – {author}: {body or 'empty comment'}"
+            )
         return formatted
 
     def _clean_html(self, value) -> str:
@@ -58,3 +63,19 @@ class DefaultIssueContentProvider:
         soup = BeautifulSoup(value, "html.parser")
         text = soup.get_text("\n", strip=True)
         return text.replace("\r", "")
+
+    def _format_timestamp(self, value: str | None) -> str:
+        if not value:
+            return "Unknown time"
+        formats = ["%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"]
+        parsed = None
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(value, fmt)
+                break
+            except ValueError:
+                continue
+        if not parsed:
+            return value
+        pst = parsed.astimezone(ZoneInfo("America/Los_Angeles"))
+        return pst.strftime("%Y-%m-%d %H:%M %Z")
