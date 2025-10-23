@@ -249,6 +249,7 @@ class Workflow:
         normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
         normalized = normalized.replace("\u00a0", " ")
         normalized = normalized.replace("\u200b", "")
+        normalized = re.sub(r"[^\x00-\x7F]+", "", normalized)
         return normalized
 
     def _assignee_name(self, issue: dict) -> str:
