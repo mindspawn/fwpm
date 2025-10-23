@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Optional
+import unicodedata
 from urllib.parse import quote_plus
 
 from zoneinfo import ZoneInfo
@@ -224,7 +225,8 @@ class Workflow:
         safe_key = issue_key.replace("/", "_")
         path = directory / f"{safe_key}.txt"
         try:
-            path.write_text(response_text, encoding="utf-8")
+            normalized = self._normalize_text(response_text)
+            path.write_text(normalized, encoding="utf-8")
         except OSError:
             logger.warning("Failed to persist LLM response for %s at %s", issue_key, path)
 
@@ -236,9 +238,18 @@ class Workflow:
         try:
             if parent and parent != Path("."):
                 parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(body, encoding="utf-8")
+            path.write_text(self._normalize_text(body), encoding="utf-8")
         except OSError:
             logger.warning("Failed to persist Confluence body to %s", path)
+
+    def _normalize_text(self, text: str) -> str:
+        if text is None:
+            return ""
+        normalized = unicodedata.normalize("NFKC", text)
+        normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+        normalized = normalized.replace("\u00a0", " ")
+        normalized = normalized.replace("\u200b", "")
+        return normalized
 
     def _assignee_name(self, issue: dict) -> str:
         assignee = (issue.get("fields") or {}).get("assignee") or {}
