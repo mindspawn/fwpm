@@ -237,8 +237,16 @@ class Workflow:
                     if "impediment" in name:
                         logger.debug("Issue %s flagged as impediment via flag field", issue.get("key"))
                         return True
+            if flag_field:
+                logger.debug("Issue %s flagged field found but no impediment match: %s", issue.get("key"), flag_field)
         status = (fields.get("status") or {}).get("name", "")
         if isinstance(status, str) and status.lower() == "impediment":
             logger.debug("Issue %s flagged as impediment via status", issue.get("key"))
             return True
+        logger.debug(
+            "Issue %s not marked impediment; status=%s flagged=%s",
+            issue.get("key"),
+            status,
+            flag_field,
+        )
         return False
