@@ -18,3 +18,10 @@ DEFAULT_SETTINGS = {
     "HTTP_VERIFY_SSL": "true",
     "HTTP_REQUEST_TIMEOUT": "30",
 }
+
+# Jira account identifiers whose comments should be ignored when preparing issue text.
+# Populate with values such as account IDs, usernames, or emails that appear in comment author details.
+IGNORE_COMMENTS_FROM = {
+    # "5d1234567890abcdef123456",
+    # "automation-bot",
+}

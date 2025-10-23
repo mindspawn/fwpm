@@ -6,6 +6,10 @@ from typing import Dict, List, Protocol
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
+from .defaults import IGNORE_COMMENTS_FROM
+
+_IGNORE_COMMENTS_NORMALIZED = {value.lower() for value in IGNORE_COMMENTS_FROM}
+
 
 class IssueContentProvider(Protocol):
     def build_issue_text(self, issue: Dict) -> str:
@@ -47,6 +51,8 @@ class DefaultIssueContentProvider:
         comment_data = (fields.get("comment") or {}).get("comments", [])
         formatted = []
         for comment in comment_data:
+            if self._should_ignore_comment(comment):
+                continue
             author = (comment.get("author") or {}).get("displayName", "Unknown")
             body = self._clean_html(comment.get("body"))
             timestamp = self._format_timestamp(comment.get("created"))
@@ -79,3 +85,19 @@ class DefaultIssueContentProvider:
             return value
         pst = parsed.astimezone(ZoneInfo("America/Los_Angeles"))
         return pst.strftime("%Y-%m-%d %H:%M %Z")
+
+    def _should_ignore_comment(self, comment: Dict) -> bool:
+        if not _IGNORE_COMMENTS_NORMALIZED:
+            return False
+        author = comment.get("author") or {}
+        identifiers = [
+            author.get("accountId"),
+            author.get("name"),
+            author.get("key"),
+            author.get("emailAddress"),
+        ]
+        identifiers = [value for value in identifiers if value]
+        for identifier in identifiers:
+            if isinstance(identifier, str) and identifier.lower() in _IGNORE_COMMENTS_NORMALIZED:
+                return True
+        return False
