@@ -14,7 +14,7 @@ def build_confluence_storage(
     filter_id: str,
     filter_name: str,
     total_issues: int,
-    issue_blocks: Iterable[Tuple[str, str, str, str | None, str]],
+    issue_blocks: Iterable[Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str]],
 ) -> str:
     """
     Build Confluence storage-format HTML with sections per issue.
@@ -24,7 +24,8 @@ def build_confluence_storage(
         filter_id: The JIRA filter identifier used.
         filter_name: The JIRA filter name.
         total_issues: Count of issues returned by the filter.
-        issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url, generated_text)`.
+        issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url,
+        reporter_name, priority_name, labels, generated_text)`.
     """
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={quote_plus(filter_id)}"
@@ -52,7 +53,16 @@ def build_confluence_storage(
     )
 
     sections = []
-    for issue_key, summary, assignee_name, assignee_url, llm_text in issue_blocks:
+    for (
+        issue_key,
+        summary,
+        assignee_name,
+        assignee_url,
+        reporter_name,
+        priority_name,
+        labels,
+        llm_text,
+    ) in issue_blocks:
         url = f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
         safe_key = html.escape(issue_key)
         safe_summary = html.escape(summary or "")
@@ -60,8 +70,18 @@ def build_confluence_storage(
         assignee_html = safe_assignee_name
         if assignee_url:
             assignee_html = f"<a href=\"{html.escape(assignee_url)}\">{safe_assignee_name}</a>"
+        reporter_html = html.escape(reporter_name or "Unknown")
+        priority_html = html.escape(priority_name or "None")
+        labels_html = ", ".join(html.escape(label) for label in labels) if labels else "None"
         issue_heading = f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}</h1>"
-        assignee_line = f"<p><strong>Assignee:</strong> {assignee_html}</p>"
+        assignee_line = (
+            "<p>"
+            f"<strong>Assignee:</strong> {assignee_html} | "
+            f"<strong>Reporter:</strong> {reporter_html} | "
+            f"<strong>Priority:</strong> {priority_html} | "
+            f"<strong>Labels:</strong> {labels_html}"
+            "</p>"
+        )
         safe_body = _render_markdown(llm_text)
         llm_section = f"<p><strong>Generated Notes:</strong></p>{safe_body}"
 

@@ -48,6 +48,8 @@ class Workflow:
             "status",
             "assignee",
             "reporter",
+            "priority",
+            "labels",
         ]
         if include_comments:
             fields.append("comment")
@@ -99,6 +101,9 @@ class Workflow:
                     issue.get("fields", {}).get("summary", ""),
                     self._assignee_name(issue),
                     self._assignee_activity_url(issue),
+                    self._reporter_name(issue),
+                    self._priority_name(issue),
+                    self._labels(issue),
                     output,
                 )
                 for issue, output in llm_outputs
@@ -192,3 +197,15 @@ class Workflow:
             return None
         base = self.app_config.jira_base_url.rstrip("/")
         return f"{base}/secure/ViewProfile.jspa?name={quote_plus(identifier)}#tab=activity-stream"
+
+    def _reporter_name(self, issue: dict) -> str:
+        reporter = (issue.get("fields") or {}).get("reporter") or {}
+        return reporter.get("displayName", "Unknown")
+
+    def _priority_name(self, issue: dict) -> str:
+        priority = (issue.get("fields") or {}).get("priority") or {}
+        return priority.get("name", "None")
+
+    def _labels(self, issue: dict) -> Tuple[str, ...]:
+        labels = (issue.get("fields") or {}).get("labels") or []
+        return tuple(label for label in labels if isinstance(label, str) and label)
