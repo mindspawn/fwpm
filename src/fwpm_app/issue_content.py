@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Dict, List, Protocol
+import re
 
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
@@ -20,6 +21,7 @@ class DefaultIssueContentProvider:
     """Builds a readable text block from core JIRA fields."""
 
     def build_issue_text(self, issue: Dict) -> str:
+        self._build_display_name_cache(issue)
         fields = issue.get("fields", {})
         summary = fields.get("summary", "")
         description = self._clean_html(fields.get("description"))
@@ -72,6 +74,7 @@ class DefaultIssueContentProvider:
             value = str(value)
         soup = BeautifulSoup(value, "html.parser")
         text = soup.get_text("\n", strip=True)
+        text = self._replace_mentions(text)
         return text.replace("\r", "")
 
     def _format_timestamp(self, value: str | None) -> str:
@@ -105,3 +108,42 @@ class DefaultIssueContentProvider:
             if isinstance(identifier, str) and identifier.lower() in _IGNORE_COMMENTS_NORMALIZED:
                 return True
         return False
+
+    def _build_display_name_cache(self, issue: Dict) -> None:
+        fields = issue.get("fields") or {}
+        author_fields = [
+            fields.get("assignee"),
+            fields.get("reporter"),
+        ]
+        comments = (fields.get("comment") or {}).get("comments", [])
+        for comment in comments:
+            author_fields.append(comment.get("author"))
+
+        cache = getattr(self, "_mention_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(self, "_mention_cache", cache)
+
+        for author in author_fields:
+            if not isinstance(author, dict):
+                continue
+            display_name = author.get("displayName")
+            if not display_name:
+                continue
+            for key_field in ["accountId", "name", "key", "emailAddress"]:
+                identifier = author.get(key_field)
+                if isinstance(identifier, str) and identifier:
+                    cache[identifier.lower()] = display_name
+
+    def _replace_mentions(self, text: str) -> str:
+        cache = getattr(self, "_mention_cache", None) or {}
+
+        def repl(match: re.Match) -> str:
+            identifier = match.group("identifier")
+            if not identifier:
+                return match.group(0)
+            display = cache.get(identifier.lower())
+            return display or identifier
+
+        pattern = re.compile(r"\[~(?:accountid:)?(?P<identifier>[\w@\.\-]+)\]")
+        return pattern.sub(repl, text)
