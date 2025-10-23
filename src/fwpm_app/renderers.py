@@ -103,7 +103,10 @@ def build_confluence_storage(
 
 
 def _render_markdown(text: str) -> str:
-    converted = markdown.markdown(text or "", extensions=[])
+    converted = markdown.markdown(
+        text or "",
+        extensions=["tables", "fenced_code"],
+    )
     return converted
 
 
