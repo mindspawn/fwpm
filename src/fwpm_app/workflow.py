@@ -111,6 +111,7 @@ class Workflow:
                     self._priority_name(issue),
                     self._labels(issue),
                     self._status_name(issue),
+                    self._is_impediment(issue),
                     output,
                 )
                 for issue, output in llm_outputs
@@ -220,3 +221,15 @@ class Workflow:
     def _status_name(self, issue: dict) -> str:
         status = (issue.get("fields") or {}).get("status") or {}
         return status.get("name", "Unknown")
+
+    def _is_impediment(self, issue: dict) -> bool:
+        fields = issue.get("fields") or {}
+        flag_field = fields.get("flagged") or []
+        if isinstance(flag_field, list):
+            for item in flag_field:
+                if isinstance(item, dict):
+                    name = item.get("name") or ""
+                    if isinstance(name, str) and name.lower() == "impediment":
+                        return True
+        status = (fields.get("status") or {}).get("name", "")
+        return isinstance(status, str) and status.lower() == "impediment"

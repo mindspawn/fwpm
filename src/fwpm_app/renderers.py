@@ -15,7 +15,7 @@ def build_confluence_storage(
     filter_name: str,
     total_issues: int,
     issue_blocks: Iterable[
-        Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str, str]
+        Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str, bool, str]
     ],
 ) -> str:
     """
@@ -27,7 +27,7 @@ def build_confluence_storage(
         filter_name: The JIRA filter name.
         total_issues: Count of issues returned by the filter.
         issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url,
-        reporter_name, priority_name, labels, status, generated_text)`.
+        reporter_name, priority_name, labels, status, is_impediment, generated_text)`.
     """
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={quote_plus(filter_id)}"
@@ -64,6 +64,7 @@ def build_confluence_storage(
         priority_name,
         labels,
         status,
+        is_impediment,
         llm_text,
     ) in issue_blocks:
         url = f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
@@ -81,8 +82,10 @@ def build_confluence_storage(
             f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}"
             f" ({safe_status})</h1>"
         )
+        flag_html = _impediment_badge() if is_impediment else ""
         assignee_line = (
             "<p>"
+            f"{flag_html}"
             f"<strong>Assignee:</strong> {assignee_html} | "
             f"<strong>Reporter:</strong> {reporter_html} | "
             f"<strong>Priority:</strong> {priority_html} | "
@@ -114,4 +117,14 @@ def _build_info_panel(text: str) -> str:
         f"<p>{escaped_text}</p>"
         "</ac:rich-text-body>"
         "</ac:structured-macro>"
+    )
+
+
+def _impediment_badge() -> str:
+    return (
+        '<ac:structured-macro ac:name="status">'
+        '<ac:parameter ac:name="colour">red</ac:parameter>'
+        '<ac:parameter ac:name="title">IMPEDIMENT</ac:parameter>'
+        '<ac:parameter ac:name="subtle">false</ac:parameter>'
+        "</ac:structured-macro> "
     )
