@@ -82,7 +82,9 @@ class Workflow:
         filter_cfg = parse_filter_description(description, self.app_config.llm_model)
         placeholder_outputs = []
         for issue in issues:
-            self._prepare_issue_text(issue)
+            issue_text = self._prepare_issue_text(issue)
+            user_prompt = self._build_user_prompt(filter_cfg, issue_text)
+            self._persist_prompt(issue.get("key"), user_prompt)
             placeholder_outputs.append((issue, "This is where the LLM response is"))
         self._publish_confluence_page(
             filter_id, filter_details, issues, placeholder_outputs, filter_cfg
@@ -141,6 +143,7 @@ class Workflow:
             issue_text = self._prepare_issue_text(issue)
             logger.debug("Constructed issue text for %s", issue.get("key"))
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
+            self._persist_prompt(issue.get("key"), user_prompt)
             response_text = self.llm_client.generate_completion(
                 system_prompt=_SYSTEM_PROMPT,
                 issue_text=user_prompt,
@@ -168,12 +171,10 @@ class Workflow:
         return "\n\n".join(part for part in parts if part)
 
     def _prepare_issue_text(self, issue: dict) -> str:
-        issue_text = self.issue_content_provider.build_issue_text(issue)
-        self._persist_issue_text(issue.get("key"), issue_text)
-        return issue_text
+        return self.issue_content_provider.build_issue_text(issue)
 
-    def _persist_issue_text(self, issue_key: str | None, issue_text: str) -> None:
-        if not issue_key or issue_text is None:
+    def _persist_prompt(self, issue_key: str | None, prompt_text: str) -> None:
+        if not issue_key or prompt_text is None:
             return
         directory = Path(ISSUE_TEXT_OUTPUT_DIR)
         try:
@@ -185,9 +186,9 @@ class Workflow:
         safe_key = issue_key.replace("/", "_")
         path = directory / f"{safe_key}.txt"
         try:
-            path.write_text(issue_text, encoding="utf-8")
+            path.write_text(prompt_text, encoding="utf-8")
         except OSError:
-            logger.warning("Failed to persist issue text for %s at %s", issue_key, path)
+            logger.warning("Failed to persist prompt for %s at %s", issue_key, path)
 
     def _assignee_name(self, issue: dict) -> str:
         assignee = (issue.get("fields") or {}).get("assignee") or {}
