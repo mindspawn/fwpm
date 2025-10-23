@@ -18,7 +18,6 @@ from .llm_client import LLMClient
 from .renderers import build_confluence_storage
 
 logger = logging.getLogger(__name__)
-_SYSTEM_PROMPT = "You are a helpful assistant that summarizes Jira issues for engineering leadership."
 
 
 class Workflow:
@@ -145,8 +144,12 @@ class Workflow:
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
             self._persist_prompt(issue.get("key"), user_prompt)
             response_text = self.llm_client.generate_completion(
-                system_prompt=_SYSTEM_PROMPT,
+                system_prompt=filter_cfg.llm.system_prompt,
                 issue_text=user_prompt,
+                temperature=filter_cfg.llm.temperature,
+                top_p=filter_cfg.llm.top_p,
+                frequency_penalty=filter_cfg.llm.frequency_penalty,
+                presence_penalty=filter_cfg.llm.presence_penalty,
             )
             outputs.append((issue, response_text))
             if LLM_REQUEST_DELAY_SECONDS:

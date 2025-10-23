@@ -20,6 +20,11 @@ class ConfluenceConfig:
 class LLMConfig:
     prompt: str
     model: str
+    system_prompt: str
+    temperature: float
+    top_p: float
+    frequency_penalty: float
+    presence_penalty: float
 
 
 @dataclasses.dataclass
@@ -39,6 +44,11 @@ class AppConfig:
     llm_base_url: str
     llm_api_key: str
     llm_model: str
+    llm_temperature: float
+    llm_top_p: float
+    llm_frequency_penalty: float
+    llm_presence_penalty: float
+    llm_system_prompt: str
     verify_ssl: bool = True
     request_timeout: int = 30
 
@@ -81,6 +91,14 @@ class AppConfig:
             llm_base_url=require("LLM_BASE_URL"),
             llm_api_key=require("LLM_API_KEY"),
             llm_model=optional("LLM_MODEL", "gpt-3.5-turbo"),
+            llm_temperature=float(optional("LLM_TEMPERATURE", "0")),
+            llm_top_p=float(optional("LLM_TOP_P", "1")),
+            llm_frequency_penalty=float(optional("LLM_FREQUENCY_PENALTY", "0")),
+            llm_presence_penalty=float(optional("LLM_PRESENCE_PENALTY", "0")),
+            llm_system_prompt=optional(
+                "LLM_SYSTEM_PROMPT",
+                "You are a helpful assistant that summarizes Jira issues for engineering leadership.",
+            ),
             verify_ssl=verify_ssl,
             request_timeout=timeout,
         )
@@ -109,7 +127,15 @@ def parse_filter_description(description: Optional[str], default_model: str) -> 
 
     prompt = _require_str(llm_section, "prompt")
 
-    llm = LLMConfig(prompt=prompt, model=llm_section.get("model", default_model))
+    llm = LLMConfig(
+        prompt=prompt,
+        model=llm_section.get("model", default_model),
+        system_prompt=llm_section.get("system_prompt", "You are a helpful assistant that summarizes Jira issues for engineering leadership."),
+        temperature=_require_float(llm_section, "temperature", 0.0),
+        top_p=_require_float(llm_section, "top_p", 1.0),
+        frequency_penalty=_require_float(llm_section, "frequency_penalty", 0.0),
+        presence_penalty=_require_float(llm_section, "presence_penalty", 0.0),
+    )
 
     return FilterConfig(confluence=confluence, llm=llm)
 
@@ -135,3 +161,13 @@ def _require_int(data: Dict[str, Any], key: str) -> int:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     raise RuntimeError(f"Expected '{key}' to be an integer in filter YAML.")
+
+
+def _require_float(data: Dict[str, Any], key: str, default: float) -> float:
+    value = data.get(key)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise RuntimeError(f"Expected '{key}' to be a float in filter YAML.")

@@ -27,13 +27,26 @@ class LLMClient:
         self.session = requests.Session()
         self.session.verify = verify_ssl
 
-    def generate_completion(self, system_prompt: str, issue_text: str) -> str:
+    def generate_completion(
+        self,
+        system_prompt: str,
+        issue_text: str,
+        *,
+        temperature: float,
+        top_p: float,
+        frequency_penalty: float,
+        presence_penalty: float,
+    ) -> str:
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": issue_text},
             ],
+            "temperature": temperature,
+            "top_p": top_p,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
         }
 
         url = f"{self.base_url}{self.completions_path}"
