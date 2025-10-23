@@ -41,12 +41,14 @@ class LLMClient:
         frequency_penalty: float,
         presence_penalty: float,
     ) -> str:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": issue_text})
+
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": issue_text},
-            ],
+            "messages": messages,
             "temperature": temperature,
             "top_p": top_p,
             "frequency_penalty": frequency_penalty,

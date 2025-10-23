@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import logging
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
@@ -50,6 +51,8 @@ class AppConfig:
     llm_frequency_penalty: float
     llm_presence_penalty: float
     llm_system_prompt: str
+    llm_allow_prompt_override: bool
+    llm_use_system_prompt_file: bool
     verify_ssl: bool = True
     request_timeout: int = 30
 
@@ -82,6 +85,15 @@ class AppConfig:
         except ValueError as exc:  # pragma: no cover - defensive
             raise RuntimeError("HTTP_REQUEST_TIMEOUT must be an integer") from exc
 
+        use_prompt_file = _as_bool(optional("LLM_USE_SYSTEM_PROMPT_FILE", "false"))
+        system_prompt_env = optional("LLM_SYSTEM_PROMPT")
+        if system_prompt_env is not None:
+            system_prompt = system_prompt_env
+        elif use_prompt_file:
+            system_prompt = _load_default_system_prompt()
+        else:
+            system_prompt = ""
+
         return cls(
             jira_base_url=require("JIRA_BASE_URL"),
             jira_username=require("JIRA_USERNAME"),
@@ -96,10 +108,9 @@ class AppConfig:
             llm_top_p=float(optional("LLM_TOP_P", "0.9")),
             llm_frequency_penalty=float(optional("LLM_FREQUENCY_PENALTY", "0")),
             llm_presence_penalty=float(optional("LLM_PRESENCE_PENALTY", "0.1")),
-            llm_system_prompt=optional(
-                "LLM_SYSTEM_PROMPT",
-                _load_default_system_prompt(),
-            ),
+            llm_system_prompt=system_prompt,
+            llm_allow_prompt_override=_as_bool(optional("LLM_ALLOW_PROMPT_OVERRIDE", "true")),
+            llm_use_system_prompt_file=use_prompt_file,
             verify_ssl=verify_ssl,
             request_timeout=timeout,
         )
@@ -128,10 +139,20 @@ def parse_filter_description(description: Optional[str], defaults: AppConfig) ->
 
     prompt = _require_str(llm_section, "prompt")
 
+    requested_system_prompt = llm_section.get("system_prompt")
+    if requested_system_prompt and not defaults.llm_allow_prompt_override:
+        logger.debug(
+            "System prompt override specified in filter but disabled by configuration; using default."
+        )
+    if defaults.llm_allow_prompt_override and requested_system_prompt is not None:
+        system_prompt = requested_system_prompt
+    else:
+        system_prompt = defaults.llm_system_prompt
+
     llm = LLMConfig(
         prompt=prompt,
         model=llm_section.get("model", defaults.llm_model),
-        system_prompt=llm_section.get("system_prompt", defaults.llm_system_prompt),
+        system_prompt=system_prompt,
         temperature=_require_float(llm_section, "temperature", defaults.llm_temperature),
         top_p=_require_float(llm_section, "top_p", defaults.llm_top_p),
         frequency_penalty=_require_float(
@@ -192,3 +213,12 @@ def _load_default_system_prompt() -> str:
             f"System prompt file {SYSTEM_PROMPT_FILE} is empty."
         )
     return content
+
+
+def _as_bool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+logger = logging.getLogger(__name__)
