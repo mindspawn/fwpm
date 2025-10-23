@@ -17,6 +17,10 @@ DEFAULT_SETTINGS = {
     "LLM_BASE_URL": "",
     "LLM_API_KEY": "",
     "LLM_MODEL": "gpt-3.5-turbo",
+    "LLM_TEMPERATURE": "0.2",
+    "LLM_TOP_P": "0.9",
+    "LLM_FREQUENCY_PENALTY": "0",
+    "LLM_PRESENCE_PENALTY": "0.1",
     "HTTP_VERIFY_SSL": "true",
     "HTTP_REQUEST_TIMEOUT": "30",
 }

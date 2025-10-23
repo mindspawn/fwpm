@@ -92,10 +92,10 @@ class AppConfig:
             llm_base_url=require("LLM_BASE_URL"),
             llm_api_key=require("LLM_API_KEY"),
             llm_model=optional("LLM_MODEL", "gpt-3.5-turbo"),
-            llm_temperature=float(optional("LLM_TEMPERATURE", "0")),
-            llm_top_p=float(optional("LLM_TOP_P", "1")),
+            llm_temperature=float(optional("LLM_TEMPERATURE", "0.2")),
+            llm_top_p=float(optional("LLM_TOP_P", "0.9")),
             llm_frequency_penalty=float(optional("LLM_FREQUENCY_PENALTY", "0")),
-            llm_presence_penalty=float(optional("LLM_PRESENCE_PENALTY", "0")),
+            llm_presence_penalty=float(optional("LLM_PRESENCE_PENALTY", "0.1")),
             llm_system_prompt=optional(
                 "LLM_SYSTEM_PROMPT",
                 _load_default_system_prompt(),
