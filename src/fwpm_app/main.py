@@ -37,6 +37,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Test mode: publish to Confluence with placeholder LLM text (no LLM calls).",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of issues to process from the filter (applies to all modes).",
+    )
     return parser.parse_args(argv)
 
 
@@ -87,20 +93,31 @@ def main(argv: list[str] | None = None) -> int:
                 "Choose at most one of --list-only or --confluence-placeholder."
             )
             return 1
+        if args.limit is not None and args.limit <= 0:
+            logging.getLogger(__name__).error("--limit must be a positive integer.")
+            return 1
 
         if args.list_only:
             filter_details, issues = workflow.collect_issues(args.filter_id)
             filter_name = filter_details.get("name", "")
-            print(
-                f"Filter {args.filter_id} ({filter_name}) returned {len(issues)} issues:"
+            total = len(issues)
+            if args.limit is not None:
+                issues = issues[: args.limit]
+            processed = len(issues)
+            summary = (
+                f"Filter {args.filter_id} ({filter_name}) returned {total} issues"
+                if args.limit is None
+                else f"Filter {args.filter_id} ({filter_name}) returned {total} issues; "
+                f"showing first {processed}"
             )
+            print(summary + ":")
             for issue in issues:
                 summary = issue.get("fields", {}).get("summary", "") or "<no summary>"
                 print(f"- {issue.get('key')}: {summary}")
         elif args.confluence_placeholder:
-            workflow.run_with_placeholder(args.filter_id)
+            workflow.run_with_placeholder(args.filter_id, limit=args.limit)
         else:
-            workflow.run(args.filter_id)
+            workflow.run(args.filter_id, limit=args.limit)
     except Exception as exc:  # pragma: no cover - top-level guard
         logging.getLogger(__name__).exception("Workflow failed: %s", exc)
         return 1

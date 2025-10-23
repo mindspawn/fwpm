@@ -63,8 +63,10 @@ class Workflow:
         logger.info("Filter %s returned %s issues", filter_id, len(issues))
         return filter_details, issues
 
-    def run(self, filter_id: str) -> None:
+    def run(self, filter_id: str, limit: int | None = None) -> None:
         filter_details, issues = self.collect_issues(filter_id)
+        if limit is not None:
+            issues = issues[:limit]
 
         description = filter_details.get("description", "")
         filter_cfg = parse_filter_description(description, self.app_config.llm_model)
@@ -72,8 +74,10 @@ class Workflow:
         llm_outputs = self._run_llm_round(issues, filter_cfg)
         self._publish_confluence_page(filter_id, filter_details, issues, llm_outputs, filter_cfg)
 
-    def run_with_placeholder(self, filter_id: str) -> None:
+    def run_with_placeholder(self, filter_id: str, limit: int | None = None) -> None:
         filter_details, issues = self.collect_issues(filter_id, include_comments=False)
+        if limit is not None:
+            issues = issues[:limit]
         description = filter_details.get("description", "")
         filter_cfg = parse_filter_description(description, self.app_config.llm_model)
         placeholder_outputs = []
