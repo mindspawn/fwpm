@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import dataclasses
-import logging
 import os
 from typing import Any, Dict, Optional
 
 import yaml
 
-logger = logging.getLogger(__name__)
+from .defaults import DEFAULT_SETTINGS
 
 
 @dataclasses.dataclass
@@ -47,12 +46,26 @@ class AppConfig:
     def from_env(cls) -> "AppConfig":
         def require(name: str) -> str:
             value = os.getenv(name)
-            if not value:
-                raise RuntimeError(f"Environment variable {name} is required")
-            return value
+            if value:
+                return value
+            default = DEFAULT_SETTINGS.get(name)
+            if default:
+                return default
+            raise RuntimeError(f"Configuration value for {name} is required")
 
-        verify_ssl = os.getenv("HTTP_VERIFY_SSL", "true").lower() in {"1", "true", "yes"}
-        timeout_raw = os.getenv("HTTP_REQUEST_TIMEOUT", "30")
+        def optional(name: str, fallback: Optional[str] = None) -> Optional[str]:
+            value = os.getenv(name)
+            if value:
+                return value
+            default = DEFAULT_SETTINGS.get(name)
+            if default:
+                return default
+            return fallback
+
+        verify_ssl_raw = optional("HTTP_VERIFY_SSL", "true")
+        verify_ssl = str(verify_ssl_raw).lower() in {"1", "true", "yes"}
+
+        timeout_raw = optional("HTTP_REQUEST_TIMEOUT", "30")
         try:
             timeout = int(timeout_raw)
         except ValueError as exc:  # pragma: no cover - defensive
@@ -62,12 +75,12 @@ class AppConfig:
             jira_base_url=require("JIRA_BASE_URL"),
             jira_username=require("JIRA_USERNAME"),
             jira_api_token=require("JIRA_API_TOKEN"),
-            confluence_base_url=os.getenv("CONFLUENCE_BASE_URL", require("JIRA_BASE_URL")),
-            confluence_username=os.getenv("CONFLUENCE_USERNAME", require("JIRA_USERNAME")),
-            confluence_api_token=os.getenv("CONFLUENCE_API_TOKEN", require("JIRA_API_TOKEN")),
+            confluence_base_url=optional("CONFLUENCE_BASE_URL", require("JIRA_BASE_URL")),
+            confluence_username=optional("CONFLUENCE_USERNAME", require("JIRA_USERNAME")),
+            confluence_api_token=optional("CONFLUENCE_API_TOKEN", require("JIRA_API_TOKEN")),
             llm_base_url=require("LLM_BASE_URL"),
             llm_api_key=require("LLM_API_KEY"),
-            llm_model=os.getenv("LLM_MODEL", "gpt-3.5-turbo"),
+            llm_model=optional("LLM_MODEL", "gpt-3.5-turbo"),
             verify_ssl=verify_ssl,
             request_timeout=timeout,
         )
