@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Optional
+import re
 import unicodedata
 from urllib.parse import quote_plus
 
