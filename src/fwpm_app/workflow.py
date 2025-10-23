@@ -51,6 +51,7 @@ class Workflow:
             "labels",
             "created",
             "updated",
+            "flagged",
         ]
         if include_comments:
             fields.append("comment")
@@ -232,7 +233,7 @@ class Workflow:
         if isinstance(flag_field, list):
             for item in flag_field:
                 if isinstance(item, dict):
-                    name = item.get("name") or ""
+                    name = item.get("name") or item.get("value") or ""
                     if isinstance(name, str) and name.lower() == "impediment":
                         return True
         status = (fields.get("status") or {}).get("name", "")
