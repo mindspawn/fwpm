@@ -366,6 +366,32 @@ class Workflow:
             expand=["changelog"],
         )
 
+    def _custom_field_contains_impediment(self, issue: dict, value) -> bool:
+        key = issue.get("key")
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, str) and "impediment" in sub_value.lower():
+                    logger.debug(
+                        "Issue %s flagged as impediment via %s=%s",
+                        key,
+                        sub_key,
+                        sub_value,
+                    )
+                    return True
+                if isinstance(sub_value, (dict, list)) and self._custom_field_contains_impediment(issue, sub_value):
+                    return True
+        elif isinstance(value, list):
+            for entry in value:
+                if self._custom_field_contains_impediment(issue, entry):
+                    return True
+        elif isinstance(value, str) and "impediment" in value.lower():
+            logger.debug(
+                "Issue %s flagged as impediment via custom field string",
+                key,
+            )
+            return True
+        return False
+
 
 class _HTMLStructureValidator(HTMLParser):
     VOID_ELEMENTS = {
