@@ -33,3 +33,10 @@ ISSUE_TEXT_OUTPUT_DIR = "issue_text_debug"
 # Optional delay (seconds) between consecutive LLM prompts.
 # Helpful for rate-limited local models; set to 0 to disable throttling.
 LLM_REQUEST_DELAY_SECONDS = 0
+
+# Optional informational banner injected at the top of the generated Confluence page.
+# Use standard HTML/markdown here; the renderer will wrap it in a Confluence info macro.
+INFO_HEADER = (
+    "Verify these summaries before sharing outside the team."
+    " Update the filter YAML prompt if focus areas change."
+)

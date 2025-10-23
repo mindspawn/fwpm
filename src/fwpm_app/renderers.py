@@ -7,6 +7,7 @@ from typing import Iterable, Tuple
 import markdown
 from urllib.parse import quote_plus
 
+from .defaults import INFO_HEADER
 
 def build_confluence_storage(
     jira_base_url: str,
@@ -35,9 +36,11 @@ def build_confluence_storage(
         "<ac:rich-text-body/>"
         "</ac:structured-macro>"
     )
+    info_panel = _build_info_panel(INFO_HEADER)
     info_section = "".join(
         [
             "<h1>Info</h1>",
+            info_panel,
             f"<p><strong>Generated:</strong> {html.escape(timestamp)} UTC</p>",
             (
                 f"<p><strong>Filter:</strong> <a href=\"{filter_url}\">{safe_filter_id}</a>"
@@ -71,3 +74,17 @@ def build_confluence_storage(
 def _render_markdown(text: str) -> str:
     converted = markdown.markdown(text or "", extensions=[])
     return converted
+
+
+def _build_info_panel(text: str) -> str:
+    if not text:
+        return ""
+    escaped_text = html.escape(text)
+    return (
+        '<ac:structured-macro ac:name="info">'
+        "<ac:parameter ac:name=\"icon\">information</ac:parameter>"
+        "<ac:rich-text-body>"
+        f"<p>{escaped_text}</p>"
+        "</ac:rich-text-body>"
+        "</ac:structured-macro>"
+    )
