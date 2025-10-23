@@ -50,6 +50,8 @@ class Workflow:
             "reporter",
             "priority",
             "labels",
+            "created",
+            "updated",
         ]
         if include_comments:
             fields.append("comment")
@@ -104,6 +106,7 @@ class Workflow:
                     self._reporter_name(issue),
                     self._priority_name(issue),
                     self._labels(issue),
+                    self._status_name(issue),
                     output,
                 )
                 for issue, output in llm_outputs
@@ -209,3 +212,7 @@ class Workflow:
     def _labels(self, issue: dict) -> Tuple[str, ...]:
         labels = (issue.get("fields") or {}).get("labels") or []
         return tuple(label for label in labels if isinstance(label, str) and label)
+
+    def _status_name(self, issue: dict) -> str:
+        status = (issue.get("fields") or {}).get("status") or {}
+        return status.get("name", "Unknown")

@@ -14,7 +14,9 @@ def build_confluence_storage(
     filter_id: str,
     filter_name: str,
     total_issues: int,
-    issue_blocks: Iterable[Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str]],
+    issue_blocks: Iterable[
+        Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str, str]
+    ],
 ) -> str:
     """
     Build Confluence storage-format HTML with sections per issue.
@@ -25,7 +27,7 @@ def build_confluence_storage(
         filter_name: The JIRA filter name.
         total_issues: Count of issues returned by the filter.
         issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url,
-        reporter_name, priority_name, labels, generated_text)`.
+        reporter_name, priority_name, labels, status, generated_text)`.
     """
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={quote_plus(filter_id)}"
@@ -61,11 +63,13 @@ def build_confluence_storage(
         reporter_name,
         priority_name,
         labels,
+        status,
         llm_text,
     ) in issue_blocks:
         url = f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
         safe_key = html.escape(issue_key)
         safe_summary = html.escape(summary or "")
+        safe_status = html.escape(status or "Unknown")
         safe_assignee_name = html.escape(assignee_name or "Unassigned")
         assignee_html = safe_assignee_name
         if assignee_url:
@@ -73,7 +77,10 @@ def build_confluence_storage(
         reporter_html = html.escape(reporter_name or "Unknown")
         priority_html = html.escape(priority_name or "None")
         labels_html = ", ".join(html.escape(label) for label in labels) if labels else "None"
-        issue_heading = f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}</h1>"
+        issue_heading = (
+            f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}"
+            f" ({safe_status})</h1>"
+        )
         assignee_line = (
             "<p>"
             f"<strong>Assignee:</strong> {assignee_html} | "

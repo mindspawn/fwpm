@@ -26,6 +26,8 @@ class DefaultIssueContentProvider:
         status = (fields.get("status") or {}).get("name", "Unknown")
         assignee = (fields.get("assignee") or {}).get("displayName", "Unassigned")
         reporter = (fields.get("reporter") or {}).get("displayName", "Unknown")
+        created = self._format_timestamp(fields.get("created"))
+        updated = self._format_timestamp(fields.get("updated"))
 
         comments = self._extract_comments(fields)
 
@@ -35,6 +37,8 @@ class DefaultIssueContentProvider:
             f"Status: {status}",
             f"Assignee: {assignee}",
             f"Reporter: {reporter}",
+            f"Created: {created}",
+            f"Updated: {updated}",
             "",
             "Description:",
             description or "<no description>",
