@@ -24,6 +24,7 @@ DEFAULT_SETTINGS = {
     "LLM_ALLOW_PROMPT_OVERRIDE": "false",
     "HTTP_VERIFY_SSL": "true",
     "HTTP_REQUEST_TIMEOUT": "30",
+    "CONFLUENCE_VALIDATE_HTML": "true",
 }
 
 # Jira account identifiers whose comments should be ignored when preparing issue text.

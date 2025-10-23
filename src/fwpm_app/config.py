@@ -53,6 +53,7 @@ class AppConfig:
     llm_system_prompt: str
     llm_allow_prompt_override: bool
     llm_use_system_prompt_file: bool
+    confluence_validate_html: bool
     verify_ssl: bool = True
     request_timeout: int = 30
 
@@ -109,8 +110,9 @@ class AppConfig:
             llm_frequency_penalty=float(optional("LLM_FREQUENCY_PENALTY", "0")),
             llm_presence_penalty=float(optional("LLM_PRESENCE_PENALTY", "0.1")),
             llm_system_prompt=system_prompt,
-            llm_allow_prompt_override=_as_bool(optional("LLM_ALLOW_PROMPT_OVERRIDE", "true")),
+            llm_allow_prompt_override=_as_bool(optional("LLM_ALLOW_PROMPT_OVERRIDE", "false")),
             llm_use_system_prompt_file=use_prompt_file,
+            confluence_validate_html=_as_bool(optional("CONFLUENCE_VALIDATE_HTML", "true")),
             verify_ssl=verify_ssl,
             request_timeout=timeout,
         )

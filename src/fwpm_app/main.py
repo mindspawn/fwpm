@@ -38,6 +38,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Test mode: publish to Confluence with placeholder LLM text (no LLM calls).",
     )
     parser.add_argument(
+        "--skip-html-validation",
+        action="store_true",
+        help="Skip HTML sanity check before uploading to Confluence.",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -85,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         jira_client=jira_client,
         llm_client=llm_client,
         confluence_client=confluence_client,
+        validate_html=app_config.confluence_validate_html and not args.skip_html_validation,
     )
 
     try:

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 import re
 import unicodedata
+from html.parser import HTMLParser
 from urllib.parse import quote_plus
 
 from zoneinfo import ZoneInfo
@@ -35,12 +36,14 @@ class Workflow:
         llm_client: LLMClient,
         confluence_client: ConfluenceClient,
         issue_content_provider: IssueContentProvider | None = None,
+        validate_html: bool = True,
     ) -> None:
         self.app_config = app_config
         self.jira_client = jira_client
         self.llm_client = llm_client
         self.confluence_client = confluence_client
         self.issue_content_provider = issue_content_provider or DefaultIssueContentProvider()
+        self.validate_html = validate_html
 
     def collect_issues(self, filter_id: str, include_comments: bool = True) -> Tuple[dict, List[dict]]:
         filter_details = self.jira_client.get_filter(filter_id)
@@ -81,6 +84,8 @@ class Workflow:
         llm_outputs = self._run_llm_round(issues, filter_cfg)
         body = self._build_confluence_body(filter_id, filter_details, llm_outputs, filter_cfg)
         self._persist_confluence_body(body)
+        if self.validate_html:
+            self._validate_html(body)
         self._publish_confluence_page(filter_cfg, body)
 
     def run_with_placeholder(self, filter_id: str, limit: int | None = None) -> None:
@@ -94,10 +99,12 @@ class Workflow:
             hydrated_issue = self._hydrate_issue(issue["key"])
             issue_text = self._prepare_issue_text(hydrated_issue)
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
-            self._persist_prompt(issue.get("key"), user_prompt)
+            self._persist_prompt(hydrated_issue.get("key"), user_prompt)
             placeholder_outputs.append((hydrated_issue, "This is where the LLM response is"))
         body = self._build_confluence_body(filter_id, filter_details, placeholder_outputs, filter_cfg)
         self._persist_confluence_body(body)
+        if self.validate_html:
+            self._validate_html(body)
         self._publish_confluence_page(filter_cfg, body)
 
     def _publish_confluence_page(
@@ -253,6 +260,17 @@ class Workflow:
         normalized = re.sub(r"[^\x00-\x7F]+", "", normalized)
         return normalized
 
+    def _validate_html(self, body: str) -> None:
+        validator = _HTMLStructureValidator()
+        try:
+            validator.feed(body)
+            validator.close()
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(f"HTML validation failed during parsing: {exc}") from exc
+        if validator.errors:
+            snippet = "; ".join(validator.errors[:5])
+            raise RuntimeError(f"HTML validation failed: {snippet}")
+
     def _assignee_name(self, issue: dict) -> str:
         assignee = (issue.get("fields") or {}).get("assignee") or {}
         return assignee.get("displayName", "Unassigned")
@@ -327,6 +345,58 @@ class Workflow:
         )
         return False
 
+
+class _HTMLStructureValidator(HTMLParser):
+    VOID_ELEMENTS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stack: List[str] = []
+        self.errors: List[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:  # pragma: no cover - parsing
+        tag_lower = tag.lower()
+        if tag_lower in self.VOID_ELEMENTS:
+            return
+        self.stack.append(tag_lower)
+
+    def handle_startendtag(self, tag: str, attrs) -> None:  # pragma: no cover - parsing
+        # Self-closing tag; treat same as void
+        return
+
+    def handle_endtag(self, tag: str) -> None:  # pragma: no cover - parsing
+        tag_lower = tag.lower()
+        if tag_lower in self.VOID_ELEMENTS:
+            return
+        if not self.stack:
+            self.errors.append(f"Unexpected closing tag </{tag}>")
+            return
+        expected = self.stack.pop()
+        if expected != tag_lower:
+            self.errors.append(
+                f"Mismatched closing tag </{tag}> expected </{expected}>"
+            )
+
+    def close(self) -> None:  # pragma: no cover - parsing
+        super().close()
+        while self.stack:
+            leftover = self.stack.pop()
+            self.errors.append(f"Unclosed tag <{leftover}>")
     def _hydrate_issue(self, issue_key: str) -> dict:
         fields = [
             "summary",
