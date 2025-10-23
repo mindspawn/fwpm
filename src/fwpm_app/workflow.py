@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from typing import List, Tuple
+from urllib.parse import quote_plus
 
 from .config import AppConfig, FilterConfig, parse_filter_description
 from .confluence_client import ConfluenceClient
@@ -57,7 +58,8 @@ class Workflow:
                 (
                     issue["key"],
                     issue.get("fields", {}).get("summary", ""),
-                    (issue.get("fields", {}).get("assignee") or {}).get("displayName", "Unassigned"),
+                    self._assignee_name(issue),
+                    self._assignee_activity_url(issue),
                     output,
                 )
                 for issue, output in llm_outputs
@@ -99,3 +101,20 @@ class Workflow:
             elapsed,
         )
         return outputs
+
+    def _assignee_name(self, issue: dict) -> str:
+        assignee = (issue.get("fields") or {}).get("assignee") or {}
+        return assignee.get("displayName", "Unassigned")
+
+    def _assignee_activity_url(self, issue: dict) -> str | None:
+        assignee = (issue.get("fields") or {}).get("assignee") or {}
+        identifier = (
+            assignee.get("accountId")
+            or assignee.get("name")
+            or assignee.get("key")
+            or assignee.get("emailAddress")
+        )
+        if not identifier:
+            return None
+        base = self.app_config.jira_base_url.rstrip("/")
+        return f"{base}/secure/ViewProfile.jspa?name={quote_plus(identifier)}#tab=activity-stream"
