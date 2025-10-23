@@ -50,3 +50,4 @@ INFO_HEADER = (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYSTEM_PROMPT_FILE = REPO_ROOT / "prompts" / "system_prompt.txt"
+TRACE_NAME = "myapp"

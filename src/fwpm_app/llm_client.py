@@ -5,6 +5,8 @@ from typing import Dict, Optional
 
 import requests
 
+from .defaults import TRACE_NAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,6 +19,7 @@ class LLMClient:
         timeout: int = 30,
         completions_path: str = "/v1/chat/completions",
         verify_ssl: bool = True,
+        trace_name: str = TRACE_NAME,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -26,6 +29,7 @@ class LLMClient:
         self.verify_ssl = verify_ssl
         self.session = requests.Session()
         self.session.verify = verify_ssl
+        self.trace_name = trace_name
 
     def generate_completion(
         self,
@@ -47,6 +51,7 @@ class LLMClient:
             "top_p": top_p,
             "frequency_penalty": frequency_penalty,
             "presence_penalty": presence_penalty,
+            "metadata": {"trace_name": self.trace_name},
         }
 
         url = f"{self.base_url}{self.completions_path}"
