@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import List, Tuple
 from urllib.parse import quote_plus
 
@@ -10,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from .config import AppConfig, FilterConfig, parse_filter_description
 from .confluence_client import ConfluenceClient
+from .defaults import ISSUE_TEXT_OUTPUT_DIR
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -70,7 +72,10 @@ class Workflow:
         filter_details, issues = self.collect_issues(filter_id, include_comments=False)
         description = filter_details.get("description", "")
         filter_cfg = parse_filter_description(description, self.app_config.llm_model)
-        placeholder_outputs = [(issue, "This is where the LLM response is") for issue in issues]
+        placeholder_outputs = []
+        for issue in issues:
+            self._prepare_issue_text(issue)
+            placeholder_outputs.append((issue, "This is where the LLM response is"))
         self._publish_confluence_page(
             filter_id, filter_details, issues, placeholder_outputs, filter_cfg
         )
@@ -120,7 +125,7 @@ class Workflow:
         start = time.time()
 
         for issue in issues:
-            issue_text = self.issue_content_provider.build_issue_text(issue)
+            issue_text = self._prepare_issue_text(issue)
             logger.debug("Constructed issue text for %s", issue.get("key"))
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
             response_text = self.llm_client.generate_completion(
@@ -146,6 +151,28 @@ class Workflow:
             issue_text.strip(),
         ]
         return "\n\n".join(part for part in parts if part)
+
+    def _prepare_issue_text(self, issue: dict) -> str:
+        issue_text = self.issue_content_provider.build_issue_text(issue)
+        self._persist_issue_text(issue.get("key"), issue_text)
+        return issue_text
+
+    def _persist_issue_text(self, issue_key: str | None, issue_text: str) -> None:
+        if not issue_key or issue_text is None:
+            return
+        directory = Path(ISSUE_TEXT_OUTPUT_DIR)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            logger.warning("Unable to create issue text output directory: %s", directory)
+            return
+
+        safe_key = issue_key.replace("/", "_")
+        path = directory / f"{safe_key}.txt"
+        try:
+            path.write_text(issue_text, encoding="utf-8")
+        except OSError:
+            logger.warning("Failed to persist issue text for %s at %s", issue_key, path)
 
     def _assignee_name(self, issue: dict) -> str:
         assignee = (issue.get("fields") or {}).get("assignee") or {}

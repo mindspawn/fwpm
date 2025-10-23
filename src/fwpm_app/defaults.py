@@ -25,3 +25,7 @@ IGNORE_COMMENTS_FROM = {
     # "5d1234567890abcdef123456",
     # "automation-bot",
 }
+
+# Directory used to store generated Jira text snapshots (`<ISSUE-KEY>.txt`).
+# Customize this if you prefer a different location.
+ISSUE_TEXT_OUTPUT_DIR = "issue_text_debug"
