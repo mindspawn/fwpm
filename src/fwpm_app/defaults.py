@@ -2,7 +2,7 @@
 Default configuration values for the fwpm application.
 
 Update the placeholders below with your organization's credentials and endpoints
-to avoid passing environment variables on each run.
+ to avoid passing environment variables on each run.
 """
 
 from pathlib import Path
@@ -48,6 +48,5 @@ INFO_HEADER = (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SYSTEM_PROMPT_FILE = REPO_ROOT / "prompts" / "system_prompt.txt"
+SYSTEM_PROMPT_FILE = Path("prompts/system_prompt.txt")
 TRACE_NAME = "myapp"
