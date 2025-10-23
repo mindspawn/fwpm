@@ -130,13 +130,20 @@ class Workflow:
     ) -> List[Tuple[dict, str]]:
         outputs: List[Tuple[dict, str]] = []
         start = time.time()
+        total = len(issues)
 
-        for issue in issues:
+        for index, issue in enumerate(issues, start=1):
             hydrated_issue = self._hydrate_issue(issue["key"])
             issue_text = self._prepare_issue_text(hydrated_issue)
             logger.debug("Constructed issue text for %s", hydrated_issue.get("key"))
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
             self._persist_prompt(hydrated_issue.get("key"), user_prompt)
+            logger.info(
+                "Sending LLM prompt (%s/%s) for issue %s",
+                index,
+                total,
+                hydrated_issue.get("key"),
+            )
             response_text = self.llm_client.generate_completion(
                 system_prompt=filter_cfg.llm.system_prompt,
                 issue_text=user_prompt,
