@@ -250,30 +250,13 @@ class Workflow:
                 logger.debug("Issue %s flagged field found but no impediment match: %s", issue.get("key"), flag_field)
 
         custom_field = fields.get("customfield_16801")
-        if custom_field:
+        if custom_field is not None:
             logger.debug(
                 "Issue %s customfield_16801 value=%s",
                 issue.get("key"),
                 custom_field,
             )
-            if isinstance(custom_field, list):
-                for entry in custom_field:
-                    if isinstance(entry, dict) and self._flag_entry_is_impediment(issue, entry, "customfield_16801"):
-                        return True
-                    if isinstance(entry, str) and "impediment" in entry.lower():
-                        logger.debug(
-                            "Issue %s flagged as impediment via customfield_16801 string entry",
-                            issue.get("key"),
-                        )
-                        return True
-            elif isinstance(custom_field, dict):
-                if self._flag_entry_is_impediment(issue, custom_field, "customfield_16801"):
-                    return True
-            elif isinstance(custom_field, str) and "impediment" in custom_field.lower():
-                logger.debug(
-                    "Issue %s flagged as impediment via customfield_16801 string",
-                    issue.get("key"),
-                )
+            if self._custom_field_contains_impediment(issue, custom_field):
                 return True
         status = (fields.get("status") or {}).get("name", "")
         if isinstance(status, str) and status.lower() == "impediment":
@@ -300,6 +283,7 @@ class Workflow:
             "created",
             "updated",
             "flagged",
+            "customfield_16801",
         ]
         expanded = self.jira_client.get_issue(
             issue_key,
@@ -307,3 +291,29 @@ class Workflow:
             expand=["changelog"],
         )
         return expanded
+
+    def _custom_field_contains_impediment(self, issue: dict, value) -> bool:
+        key = issue.get("key")
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, str) and "impediment" in sub_value.lower():
+                    logger.debug(
+                        "Issue %s flagged as impediment via %s=%s",
+                        key,
+                        sub_key,
+                        sub_value,
+                    )
+                    return True
+                if isinstance(sub_value, (dict, list)) and self._custom_field_contains_impediment(issue, sub_value):
+                    return True
+        elif isinstance(value, list):
+            for entry in value:
+                if self._custom_field_contains_impediment(issue, entry):
+                    return True
+        elif isinstance(value, str) and "impediment" in value.lower():
+            logger.debug(
+                "Issue %s flagged as impediment via custom field string",
+                key,
+            )
+            return True
+        return False
