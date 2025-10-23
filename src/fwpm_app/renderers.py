@@ -36,6 +36,7 @@ def build_confluence_storage(
     filter_name_fragment = f" ({safe_filter_name})" if safe_filter_name else ""
     toc_macro = (
         '<ac:structured-macro ac:name="toc">'
+        '<ac:parameter ac:name="maxLevel">1</ac:parameter>'
         "<ac:rich-text-body/>"
         "</ac:structured-macro>"
     )
