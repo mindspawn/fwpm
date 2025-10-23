@@ -235,8 +235,15 @@ class Workflow:
         if isinstance(flag_field, list):
             for item in flag_field:
                 if isinstance(item, dict):
-                    name = (item.get("name") or item.get("value") or "").lower()
-                    if "impediment" in name:
+                    name = item.get("name") or item.get("value") or ""
+                    normalized = name.lower()
+                    logger.debug(
+                        "Issue %s flag entry examined: name=%s value=%s",
+                        issue.get("key"),
+                        item.get("name"),
+                        item.get("value"),
+                    )
+                    if "impediment" in normalized:
                         logger.debug("Issue %s flagged as impediment via flag field", issue.get("key"))
                         return True
             if flag_field:
