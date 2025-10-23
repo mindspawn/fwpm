@@ -30,14 +30,12 @@ class Workflow:
         self.confluence_client = confluence_client
         self.issue_content_provider = issue_content_provider or DefaultIssueContentProvider()
 
-    def run(self, filter_id: str) -> None:
+    def collect_issues(self, filter_id: str) -> Tuple[dict, List[dict]]:
         filter_details = self.jira_client.get_filter(filter_id)
 
         jql = filter_details.get("jql")
-        description = filter_details.get("description", "")
         logger.info("Executing filter %s with JQL: %s", filter_id, jql)
 
-        filter_cfg = parse_filter_description(description, self.app_config.llm_model)
         issues = self.jira_client.search_issues(
             jql=jql,
             fields=[
@@ -50,6 +48,13 @@ class Workflow:
             ],
         )
         logger.info("Filter %s returned %s issues", filter_id, len(issues))
+        return filter_details, issues
+
+    def run(self, filter_id: str) -> None:
+        filter_details, issues = self.collect_issues(filter_id)
+
+        description = filter_details.get("description", "")
+        filter_cfg = parse_filter_description(description, self.app_config.llm_model)
 
         llm_outputs = self._run_llm_round(issues, filter_cfg)
         body = build_confluence_storage(

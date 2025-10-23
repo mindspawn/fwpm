@@ -27,6 +27,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="INFO",
         help="Logging level (DEBUG, INFO, WARNING, ERROR). Default: INFO",
     )
+    parser.add_argument(
+        "--list-only",
+        action="store_true",
+        help="Test mode: only fetch and print issues returned by the filter.",
+    )
     return parser.parse_args(argv)
 
 
@@ -72,7 +77,17 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        workflow.run(args.filter_id)
+        if args.list_only:
+            filter_details, issues = workflow.collect_issues(args.filter_id)
+            filter_name = filter_details.get("name", "")
+            print(
+                f"Filter {args.filter_id} ({filter_name}) returned {len(issues)} issues:"
+            )
+            for issue in issues:
+                summary = issue.get("fields", {}).get("summary", "") or "<no summary>"
+                print(f"- {issue.get('key')}: {summary}")
+        else:
+            workflow.run(args.filter_id)
     except Exception as exc:  # pragma: no cover - top-level guard
         logging.getLogger(__name__).exception("Workflow failed: %s", exc)
         return 1
