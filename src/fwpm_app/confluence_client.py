@@ -41,5 +41,13 @@ class ConfluenceClient:
         logger.info("Confluence POST %s", url)
         response = self.session.post(url, json=payload, timeout=self.timeout)
         logger.info("Confluence response %s %s", response.status_code, url)
-        response.raise_for_status()
+        if not response.ok:
+            try:
+                logger.error(
+                    "Confluence error payload: %s",
+                    response.json(),
+                )
+            except ValueError:
+                logger.error("Confluence error payload (raw): %s", response.text)
+            response.raise_for_status()
         return response.json()
