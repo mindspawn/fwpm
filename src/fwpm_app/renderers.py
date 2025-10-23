@@ -4,6 +4,7 @@ import html
 from datetime import datetime, timezone
 from typing import Iterable, Tuple
 
+import markdown
 
 def build_confluence_storage(
     jira_base_url: str, issue_blocks: Iterable[Tuple[str, str, str]]
@@ -26,7 +27,7 @@ def build_confluence_storage(
         url = f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
         safe_key = html.escape(issue_key)
         safe_summary = html.escape(summary or "")
-        safe_body = _wrap_preformatted(llm_text)
+        safe_body = _render_markdown(llm_text)
 
         section = (
             f"<h2><a href=\"{html.escape(url)}\">{safe_key}</a> – {safe_summary}</h2>"
@@ -37,6 +38,6 @@ def build_confluence_storage(
     return header + "".join(sections)
 
 
-def _wrap_preformatted(text: str) -> str:
-    escaped = html.escape(text).replace("\n", "<br/>")
-    return f"<p>{escaped}</p>"
+def _render_markdown(text: str) -> str:
+    converted = markdown.markdown(text or "", extensions=[])
+    return converted
