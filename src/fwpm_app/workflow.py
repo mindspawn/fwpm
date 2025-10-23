@@ -345,6 +345,27 @@ class Workflow:
         )
         return False
 
+    def _hydrate_issue(self, issue_key: str) -> dict:
+        fields = [
+            "summary",
+            "description",
+            "status",
+            "assignee",
+            "reporter",
+            "priority",
+            "labels",
+            "comment",
+            "created",
+            "updated",
+            "flagged",
+            "customfield_16801",
+        ]
+        return self.jira_client.get_issue(
+            issue_key,
+            fields=fields,
+            expand=["changelog"],
+        )
+
 
 class _HTMLStructureValidator(HTMLParser):
     VOID_ELEMENTS = {
@@ -376,7 +397,6 @@ class _HTMLStructureValidator(HTMLParser):
         self.stack.append(tag_lower)
 
     def handle_startendtag(self, tag: str, attrs) -> None:  # pragma: no cover - parsing
-        # Self-closing tag; treat same as void
         return
 
     def handle_endtag(self, tag: str) -> None:  # pragma: no cover - parsing
@@ -397,6 +417,7 @@ class _HTMLStructureValidator(HTMLParser):
         while self.stack:
             leftover = self.stack.pop()
             self.errors.append(f"Unclosed tag <{leftover}>")
+
     def _hydrate_issue(self, issue_key: str) -> dict:
         fields = [
             "summary",
