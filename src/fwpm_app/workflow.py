@@ -81,14 +81,21 @@ class Workflow:
         description = filter_details.get("description", "")
         filter_cfg = parse_filter_description(description, self.app_config)
 
+        workflow_start = time.time()
         llm_outputs = self._run_llm_round(issues, filter_cfg)
         body = self._build_confluence_body(filter_id, filter_details, llm_outputs, filter_cfg)
         self._persist_confluence_body(body)
         if self.validate_html:
             self._validate_html(body)
         self._publish_confluence_page(filter_cfg, body)
+        logger.info(
+            "Workflow completed for filter %s in %.2f seconds",
+            filter_id,
+            time.time() - workflow_start,
+        )
 
     def run_with_placeholder(self, filter_id: str, limit: int | None = None) -> None:
+        workflow_start = time.time()
         filter_details, issues = self.collect_issues(filter_id, include_comments=False)
         if limit is not None:
             issues = issues[:limit]
@@ -106,6 +113,11 @@ class Workflow:
         if self.validate_html:
             self._validate_html(body)
         self._publish_confluence_page(filter_cfg, body)
+        logger.info(
+            "Placeholder workflow completed for filter %s in %.2f seconds",
+            filter_id,
+            time.time() - workflow_start,
+        )
 
     def _publish_confluence_page(
         self,
@@ -130,6 +142,7 @@ class Workflow:
     ) -> List[Tuple[dict, str]]:
         outputs: List[Tuple[dict, str]] = []
         start = time.time()
+        overall_start = start
         total = len(issues)
 
         for index, issue in enumerate(issues, start=1):
@@ -144,6 +157,7 @@ class Workflow:
                 total,
                 hydrated_issue.get("key"),
             )
+            prompt_start = time.time()
             response_text = self.llm_client.generate_completion(
                 system_prompt=filter_cfg.llm.system_prompt,
                 issue_text=user_prompt,
@@ -151,6 +165,12 @@ class Workflow:
                 top_p=filter_cfg.llm.top_p,
                 frequency_penalty=filter_cfg.llm.frequency_penalty,
                 presence_penalty=filter_cfg.llm.presence_penalty,
+            )
+            prompt_elapsed = time.time() - prompt_start
+            logger.info(
+                "LLM response received for %s (elapsed %.2fs)",
+                hydrated_issue.get("key"),
+                prompt_elapsed,
             )
             self._persist_llm_response(hydrated_issue.get("key"), response_text)
             outputs.append((hydrated_issue, response_text))
