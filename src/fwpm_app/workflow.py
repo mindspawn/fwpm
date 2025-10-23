@@ -54,7 +54,12 @@ class Workflow:
         body = build_confluence_storage(
             jira_base_url=self.app_config.jira_base_url,
             issue_blocks=(
-                (issue["key"], issue.get("fields", {}).get("summary", ""), output)
+                (
+                    issue["key"],
+                    issue.get("fields", {}).get("summary", ""),
+                    (issue.get("fields", {}).get("assignee") or {}).get("displayName", "Unassigned"),
+                    output,
+                )
                 for issue, output in llm_outputs
             ),
         )
