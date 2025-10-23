@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import re
+import logging
 from datetime import datetime
 from typing import Dict, List, Protocol
-import re
 
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
@@ -31,7 +32,7 @@ class DefaultIssueContentProvider:
         created = self._format_timestamp(fields.get("created"))
         updated = self._format_timestamp(fields.get("updated"))
 
-        comments = self._extract_comments(fields)
+        comments = self._extract_comments(fields, issue.get("key"))
 
         parts = [
             f"Issue Key: {issue.get('key')}",
@@ -53,8 +54,16 @@ class DefaultIssueContentProvider:
 
         return "\n".join(part for part in parts if part is not None)
 
-    def _extract_comments(self, fields: Dict) -> List[str]:
-        comment_data = (fields.get("comment") or {}).get("comments", [])
+    def _extract_comments(self, fields: Dict, issue_key: str | None) -> List[str]:
+        comment_field = fields.get("comment") or {}
+        comment_data = comment_field.get("comments", [])
+        logger = logging.getLogger(__name__)
+        logger.debug(
+            "Issue %s comments fetched: %s/%s",
+            issue_key,
+            len(comment_data),
+            comment_field.get("total"),
+        )
         formatted = []
         for comment in comment_data:
             if self._should_ignore_comment(comment):

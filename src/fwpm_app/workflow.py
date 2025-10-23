@@ -82,10 +82,11 @@ class Workflow:
         filter_cfg = parse_filter_description(description, self.app_config)
         placeholder_outputs = []
         for issue in issues:
-            issue_text = self._prepare_issue_text(issue)
+            hydrated_issue = self._hydrate_issue(issue["key"])
+            issue_text = self._prepare_issue_text(hydrated_issue)
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
             self._persist_prompt(issue.get("key"), user_prompt)
-            placeholder_outputs.append((issue, "This is where the LLM response is"))
+            placeholder_outputs.append((hydrated_issue, "This is where the LLM response is"))
         self._publish_confluence_page(
             filter_id, filter_details, issues, placeholder_outputs, filter_cfg
         )
@@ -140,10 +141,11 @@ class Workflow:
         start = time.time()
 
         for issue in issues:
-            issue_text = self._prepare_issue_text(issue)
-            logger.debug("Constructed issue text for %s", issue.get("key"))
+            hydrated_issue = self._hydrate_issue(issue["key"])
+            issue_text = self._prepare_issue_text(hydrated_issue)
+            logger.debug("Constructed issue text for %s", hydrated_issue.get("key"))
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
-            self._persist_prompt(issue.get("key"), user_prompt)
+            self._persist_prompt(hydrated_issue.get("key"), user_prompt)
             response_text = self.llm_client.generate_completion(
                 system_prompt=filter_cfg.llm.system_prompt,
                 issue_text=user_prompt,
@@ -152,7 +154,7 @@ class Workflow:
                 frequency_penalty=filter_cfg.llm.frequency_penalty,
                 presence_penalty=filter_cfg.llm.presence_penalty,
             )
-            outputs.append((issue, response_text))
+            outputs.append((hydrated_issue, response_text))
             if LLM_REQUEST_DELAY_SECONDS:
                 time.sleep(LLM_REQUEST_DELAY_SECONDS)
 
@@ -250,3 +252,24 @@ class Workflow:
             flag_field,
         )
         return False
+
+    def _hydrate_issue(self, issue_key: str) -> dict:
+        fields = [
+            "summary",
+            "description",
+            "status",
+            "assignee",
+            "reporter",
+            "priority",
+            "labels",
+            "comment",
+            "created",
+            "updated",
+            "flagged",
+        ]
+        expanded = self.jira_client.get_issue(
+            issue_key,
+            fields=fields,
+            expand=["changelog"],
+        )
+        return expanded

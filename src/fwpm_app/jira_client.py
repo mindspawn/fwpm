@@ -58,6 +58,20 @@ class JiraClient:
         logger.info("JIRA search completed: %s issues returned for JQL '%s'", len(issues), jql)
         return issues
 
+    def get_issue(
+        self,
+        issue_key: str,
+        fields: Optional[List[str]] = None,
+        expand: Optional[List[str]] = None,
+    ) -> Dict:
+        params = {}
+        if fields:
+            params["fields"] = ",".join(fields)
+        if expand:
+            params["expand"] = ",".join(expand)
+        path = f"/rest/api/2/issue/{issue_key}"
+        return self._request("GET", path, params=params)
+
     def _request(self, method: str, path: str, **kwargs) -> Dict:
         url = f"{self.base_url}{path}"
         logger.info("JIRA %s %s", method.upper(), url)
