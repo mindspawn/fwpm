@@ -57,4 +57,4 @@ class DefaultIssueContentProvider:
             value = str(value)
         soup = BeautifulSoup(value, "html.parser")
         text = soup.get_text("\n", strip=True)
-        return text
+        return text.replace("\r", "")
