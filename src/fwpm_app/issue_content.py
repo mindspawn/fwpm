@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import html
 from typing import Dict, List, Protocol
+
+from bs4 import BeautifulSoup
 
 
 class IssueContentProvider(Protocol):
@@ -15,7 +16,7 @@ class DefaultIssueContentProvider:
     def build_issue_text(self, issue: Dict) -> str:
         fields = issue.get("fields", {})
         summary = fields.get("summary", "")
-        description = fields.get("description", "")
+        description = self._clean_html(fields.get("description"))
         status = (fields.get("status") or {}).get("name", "Unknown")
         assignee = (fields.get("assignee") or {}).get("displayName", "Unassigned")
         reporter = (fields.get("reporter") or {}).get("displayName", "Unknown")
@@ -45,9 +46,15 @@ class DefaultIssueContentProvider:
         formatted = []
         for comment in comment_data:
             author = (comment.get("author") or {}).get("displayName", "Unknown")
-            body = comment.get("body", "")
-            formatted.append(f"- {author}: {self._strip_html(body)}")
+            body = self._clean_html(comment.get("body"))
+            formatted.append(f"- {author}: {body or 'empty comment'}")
         return formatted
 
-    def _strip_html(self, value: str) -> str:
-        return html.unescape(value.replace("<p>", "").replace("</p>", "\n"))
+    def _clean_html(self, value) -> str:
+        if not value:
+            return ""
+        if not isinstance(value, str):
+            value = str(value)
+        soup = BeautifulSoup(value, "html.parser")
+        text = soup.get_text("\n", strip=True)
+        return text
