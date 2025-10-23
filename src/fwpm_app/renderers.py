@@ -58,17 +58,11 @@ def build_confluence_storage(
         if assignee_url:
             assignee_html = f"<a href=\"{html.escape(assignee_url)}\">{safe_assignee_name}</a>"
         issue_heading = f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}</h1>"
-        issue_link = (
-            f"<p><strong>Issue:</strong> <a href=\"{html.escape(url)}\">{safe_key}</a></p>"
-        )
-        summary_line = f"<p><strong>Summary:</strong> {safe_summary}</p>"
         assignee_line = f"<p><strong>Assignee:</strong> {assignee_html}</p>"
         safe_body = _render_markdown(llm_text)
         llm_section = f"<p><strong>Generated Notes:</strong></p>{safe_body}"
 
-        section = "".join(
-            [issue_heading, issue_link, summary_line, assignee_line, llm_section]
-        )
+        section = "".join([issue_heading, assignee_line, llm_section])
         sections.append(section)
 
     return toc_macro + info_section + "".join(sections)
