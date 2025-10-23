@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import dataclasses
 import os
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 import yaml
 
-from .defaults import DEFAULT_SETTINGS
+from .defaults import DEFAULT_SETTINGS, SYSTEM_PROMPT_FILE
 
 
 @dataclasses.dataclass
@@ -97,14 +98,14 @@ class AppConfig:
             llm_presence_penalty=float(optional("LLM_PRESENCE_PENALTY", "0")),
             llm_system_prompt=optional(
                 "LLM_SYSTEM_PROMPT",
-                "You are a helpful assistant that summarizes Jira issues for engineering leadership.",
+                _load_default_system_prompt(),
             ),
             verify_ssl=verify_ssl,
             request_timeout=timeout,
         )
 
 
-def parse_filter_description(description: Optional[str], default_model: str) -> FilterConfig:
+def parse_filter_description(description: Optional[str], defaults: AppConfig) -> FilterConfig:
     if not description:
         raise RuntimeError("Filter description is empty; expected YAML configuration.")
 
@@ -129,12 +130,16 @@ def parse_filter_description(description: Optional[str], default_model: str) -> 
 
     llm = LLMConfig(
         prompt=prompt,
-        model=llm_section.get("model", default_model),
-        system_prompt=llm_section.get("system_prompt", "You are a helpful assistant that summarizes Jira issues for engineering leadership."),
-        temperature=_require_float(llm_section, "temperature", 0.0),
-        top_p=_require_float(llm_section, "top_p", 1.0),
-        frequency_penalty=_require_float(llm_section, "frequency_penalty", 0.0),
-        presence_penalty=_require_float(llm_section, "presence_penalty", 0.0),
+        model=llm_section.get("model", defaults.llm_model),
+        system_prompt=llm_section.get("system_prompt", defaults.llm_system_prompt),
+        temperature=_require_float(llm_section, "temperature", defaults.llm_temperature),
+        top_p=_require_float(llm_section, "top_p", defaults.llm_top_p),
+        frequency_penalty=_require_float(
+            llm_section, "frequency_penalty", defaults.llm_frequency_penalty
+        ),
+        presence_penalty=_require_float(
+            llm_section, "presence_penalty", defaults.llm_presence_penalty
+        ),
     )
 
     return FilterConfig(confluence=confluence, llm=llm)
@@ -171,3 +176,19 @@ def _require_float(data: Dict[str, Any], key: str, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         raise RuntimeError(f"Expected '{key}' to be a float in filter YAML.")
+
+
+@lru_cache(maxsize=1)
+def _load_default_system_prompt() -> str:
+    try:
+        content = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"System prompt file not found at {SYSTEM_PROMPT_FILE}."
+        ) from exc
+    content = content.strip()
+    if not content:
+        raise RuntimeError(
+            f"System prompt file {SYSTEM_PROMPT_FILE} is empty."
+        )
+    return content

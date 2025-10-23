@@ -5,6 +5,8 @@ Update the placeholders below with your organization's credentials and endpoints
 to avoid passing environment variables on each run.
 """
 
+from pathlib import Path
+
 DEFAULT_SETTINGS = {
     "JIRA_BASE_URL": "",
     "JIRA_USERNAME": "",
@@ -40,3 +42,7 @@ INFO_HEADER = (
     "Verify these summaries before sharing outside the team."
     " Update the filter YAML prompt if focus areas change."
 )
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SYSTEM_PROMPT_FILE = REPO_ROOT / "prompts" / "system_prompt.txt"

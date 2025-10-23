@@ -68,7 +68,7 @@ class Workflow:
             issues = issues[:limit]
 
         description = filter_details.get("description", "")
-        filter_cfg = parse_filter_description(description, self.app_config.llm_model)
+        filter_cfg = parse_filter_description(description, self.app_config)
 
         llm_outputs = self._run_llm_round(issues, filter_cfg)
         self._publish_confluence_page(filter_id, filter_details, issues, llm_outputs, filter_cfg)
@@ -78,7 +78,7 @@ class Workflow:
         if limit is not None:
             issues = issues[:limit]
         description = filter_details.get("description", "")
-        filter_cfg = parse_filter_description(description, self.app_config.llm_model)
+        filter_cfg = parse_filter_description(description, self.app_config)
         placeholder_outputs = []
         for issue in issues:
             issue_text = self._prepare_issue_text(issue)
