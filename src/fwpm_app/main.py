@@ -32,6 +32,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Test mode: only fetch and print issues returned by the filter.",
     )
+    parser.add_argument(
+        "--confluence-placeholder",
+        action="store_true",
+        help="Test mode: publish to Confluence with placeholder LLM text (no LLM calls).",
+    )
     return parser.parse_args(argv)
 
 
@@ -77,6 +82,12 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
+        if args.list_only and args.confluence_placeholder:
+            logging.getLogger(__name__).error(
+                "Choose at most one of --list-only or --confluence-placeholder."
+            )
+            return 1
+
         if args.list_only:
             filter_details, issues = workflow.collect_issues(args.filter_id)
             filter_name = filter_details.get("name", "")
@@ -86,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
             for issue in issues:
                 summary = issue.get("fields", {}).get("summary", "") or "<no summary>"
                 print(f"- {issue.get('key')}: {summary}")
+        elif args.confluence_placeholder:
+            workflow.run_with_placeholder(args.filter_id)
         else:
             workflow.run(args.filter_id)
     except Exception as exc:  # pragma: no cover - top-level guard

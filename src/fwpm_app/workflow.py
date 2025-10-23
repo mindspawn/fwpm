@@ -30,22 +30,25 @@ class Workflow:
         self.confluence_client = confluence_client
         self.issue_content_provider = issue_content_provider or DefaultIssueContentProvider()
 
-    def collect_issues(self, filter_id: str) -> Tuple[dict, List[dict]]:
+    def collect_issues(self, filter_id: str, include_comments: bool = True) -> Tuple[dict, List[dict]]:
         filter_details = self.jira_client.get_filter(filter_id)
 
         jql = filter_details.get("jql")
         logger.info("Executing filter %s with JQL: %s", filter_id, jql)
 
+        fields = [
+            "summary",
+            "description",
+            "status",
+            "assignee",
+            "reporter",
+        ]
+        if include_comments:
+            fields.append("comment")
+
         issues = self.jira_client.search_issues(
             jql=jql,
-            fields=[
-                "summary",
-                "description",
-                "status",
-                "assignee",
-                "reporter",
-                "comment",
-            ],
+            fields=fields,
         )
         logger.info("Filter %s returned %s issues", filter_id, len(issues))
         return filter_details, issues
@@ -57,6 +60,25 @@ class Workflow:
         filter_cfg = parse_filter_description(description, self.app_config.llm_model)
 
         llm_outputs = self._run_llm_round(issues, filter_cfg)
+        self._publish_confluence_page(filter_id, filter_details, issues, llm_outputs, filter_cfg)
+
+    def run_with_placeholder(self, filter_id: str) -> None:
+        filter_details, issues = self.collect_issues(filter_id, include_comments=False)
+        description = filter_details.get("description", "")
+        filter_cfg = parse_filter_description(description, self.app_config.llm_model)
+        placeholder_outputs = [(issue, "This is where the LLM response is") for issue in issues]
+        self._publish_confluence_page(
+            filter_id, filter_details, issues, placeholder_outputs, filter_cfg
+        )
+
+    def _publish_confluence_page(
+        self,
+        filter_id: str,
+        filter_details: dict,
+        issues: List[dict],
+        llm_outputs: List[Tuple[dict, str]],
+        filter_cfg: FilterConfig,
+    ) -> None:
         body = build_confluence_storage(
             jira_base_url=self.app_config.jira_base_url,
             filter_id=filter_id,
