@@ -4,14 +4,19 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from urllib.parse import quote_plus
 
 from zoneinfo import ZoneInfo
 
 from .config import AppConfig, FilterConfig, parse_filter_description
 from .confluence_client import ConfluenceClient
-from .defaults import ISSUE_TEXT_OUTPUT_DIR, LLM_REQUEST_DELAY_SECONDS
+from .defaults import (
+    ISSUE_TEXT_OUTPUT_DIR,
+    LLM_REQUEST_DELAY_SECONDS,
+    LLM_RESPONSE_OUTPUT_DIR,
+    CONFLUENCE_OUTPUT_FILE,
+)
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -72,7 +77,9 @@ class Workflow:
         filter_cfg = parse_filter_description(description, self.app_config)
 
         llm_outputs = self._run_llm_round(issues, filter_cfg)
-        self._publish_confluence_page(filter_id, filter_details, issues, llm_outputs, filter_cfg)
+        body = self._build_confluence_body(filter_id, filter_details, llm_outputs, filter_cfg)
+        self._persist_confluence_body(body)
+        self._publish_confluence_page(filter_cfg, body)
 
     def run_with_placeholder(self, filter_id: str, limit: int | None = None) -> None:
         filter_details, issues = self.collect_issues(filter_id, include_comments=False)
@@ -87,40 +94,15 @@ class Workflow:
             user_prompt = self._build_user_prompt(filter_cfg, issue_text)
             self._persist_prompt(issue.get("key"), user_prompt)
             placeholder_outputs.append((hydrated_issue, "This is where the LLM response is"))
-        self._publish_confluence_page(
-            filter_id, filter_details, issues, placeholder_outputs, filter_cfg
-        )
+        body = self._build_confluence_body(filter_id, filter_details, placeholder_outputs, filter_cfg)
+        self._persist_confluence_body(body)
+        self._publish_confluence_page(filter_cfg, body)
 
     def _publish_confluence_page(
         self,
-        filter_id: str,
-        filter_details: dict,
-        issues: List[dict],
-        llm_outputs: List[Tuple[dict, str]],
         filter_cfg: FilterConfig,
+        body: str,
     ) -> None:
-        body = build_confluence_storage(
-            jira_base_url=self.app_config.jira_base_url,
-            filter_id=filter_id,
-            filter_name=filter_details.get("name", ""),
-            total_issues=len(issues),
-            issue_blocks=(
-                (
-                    issue["key"],
-                    issue.get("fields", {}).get("summary", ""),
-                    self._assignee_name(issue),
-                    self._assignee_activity_url(issue),
-                    self._reporter_name(issue),
-                    self._priority_name(issue),
-                    self._labels(issue),
-                    self._status_name(issue),
-                    self._is_impediment(issue),
-                    output,
-                )
-                for issue, output in llm_outputs
-            ),
-        )
-
         confluence_cfg = filter_cfg.confluence
         result = self.confluence_client.create_page(
             space_key=confluence_cfg.space_key,
@@ -154,6 +136,7 @@ class Workflow:
                 frequency_penalty=filter_cfg.llm.frequency_penalty,
                 presence_penalty=filter_cfg.llm.presence_penalty,
             )
+            self._persist_llm_response(hydrated_issue.get("key"), response_text)
             outputs.append((hydrated_issue, response_text))
             if LLM_REQUEST_DELAY_SECONDS:
                 time.sleep(LLM_REQUEST_DELAY_SECONDS)
@@ -165,6 +148,38 @@ class Workflow:
             elapsed,
         )
         return outputs
+
+    def _build_confluence_body(
+        self,
+        filter_id: str,
+        filter_details: dict,
+        llm_outputs: List[Tuple[dict, str]],
+        filter_cfg: FilterConfig,
+    ) -> str:
+        total_issues = len(llm_outputs)
+        issue_blocks = (
+            (
+                issue["key"],
+                issue.get("fields", {}).get("summary", ""),
+                self._assignee_name(issue),
+                self._assignee_activity_url(issue),
+                self._reporter_name(issue),
+                self._priority_name(issue),
+                self._labels(issue),
+                self._status_name(issue),
+                self._is_impediment(issue),
+                response_text,
+            )
+            for issue, response_text in llm_outputs
+        )
+
+        return build_confluence_storage(
+            jira_base_url=self.app_config.jira_base_url,
+            filter_id=filter_id,
+            filter_name=filter_details.get("name", ""),
+            total_issues=total_issues,
+            issue_blocks=issue_blocks,
+        )
 
     def _build_user_prompt(self, filter_cfg: FilterConfig, issue_text: str) -> str:
         now_pst = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M")
@@ -195,6 +210,35 @@ class Workflow:
             path.write_text(prompt_text, encoding="utf-8")
         except OSError:
             logger.warning("Failed to persist prompt for %s at %s", issue_key, path)
+
+    def _persist_llm_response(self, issue_key: Optional[str], response_text: str) -> None:
+        if not issue_key or response_text is None:
+            return
+        directory = Path(LLM_RESPONSE_OUTPUT_DIR)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            logger.warning("Unable to create LLM response output directory: %s", directory)
+            return
+
+        safe_key = issue_key.replace("/", "_")
+        path = directory / f"{safe_key}.txt"
+        try:
+            path.write_text(response_text, encoding="utf-8")
+        except OSError:
+            logger.warning("Failed to persist LLM response for %s at %s", issue_key, path)
+
+    def _persist_confluence_body(self, body: str) -> None:
+        if body is None:
+            return
+        path = Path(CONFLUENCE_OUTPUT_FILE)
+        parent = path.parent
+        try:
+            if parent and parent != Path("."):
+                parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body, encoding="utf-8")
+        except OSError:
+            logger.warning("Failed to persist Confluence body to %s", path)
 
     def _assignee_name(self, issue: dict) -> str:
         assignee = (issue.get("fields") or {}).get("assignee") or {}
