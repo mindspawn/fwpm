@@ -29,3 +29,7 @@ IGNORE_COMMENTS_FROM = {
 # Directory used to store generated Jira text snapshots (`<ISSUE-KEY>.txt`).
 # Customize this if you prefer a different location.
 ISSUE_TEXT_OUTPUT_DIR = "issue_text_debug"
+
+# Optional delay (seconds) between consecutive LLM prompts.
+# Helpful for rate-limited local models; set to 0 to disable throttling.
+LLM_REQUEST_DELAY_SECONDS = 0

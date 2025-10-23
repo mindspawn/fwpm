@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from .config import AppConfig, FilterConfig, parse_filter_description
 from .confluence_client import ConfluenceClient
-from .defaults import ISSUE_TEXT_OUTPUT_DIR
+from .defaults import ISSUE_TEXT_OUTPUT_DIR, LLM_REQUEST_DELAY_SECONDS
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -133,6 +133,8 @@ class Workflow:
                 issue_text=user_prompt,
             )
             outputs.append((issue, response_text))
+            if LLM_REQUEST_DELAY_SECONDS:
+                time.sleep(LLM_REQUEST_DELAY_SECONDS)
 
         elapsed = time.time() - start
         logger.info(
