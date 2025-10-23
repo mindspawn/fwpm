@@ -248,6 +248,33 @@ class Workflow:
                         return True
             if flag_field:
                 logger.debug("Issue %s flagged field found but no impediment match: %s", issue.get("key"), flag_field)
+
+        custom_field = fields.get("customfield_16801")
+        if custom_field:
+            logger.debug(
+                "Issue %s customfield_16801 value=%s",
+                issue.get("key"),
+                custom_field,
+            )
+            if isinstance(custom_field, list):
+                for entry in custom_field:
+                    if isinstance(entry, dict) and self._flag_entry_is_impediment(issue, entry, "customfield_16801"):
+                        return True
+                    if isinstance(entry, str) and "impediment" in entry.lower():
+                        logger.debug(
+                            "Issue %s flagged as impediment via customfield_16801 string entry",
+                            issue.get("key"),
+                        )
+                        return True
+            elif isinstance(custom_field, dict):
+                if self._flag_entry_is_impediment(issue, custom_field, "customfield_16801"):
+                    return True
+            elif isinstance(custom_field, str) and "impediment" in custom_field.lower():
+                logger.debug(
+                    "Issue %s flagged as impediment via customfield_16801 string",
+                    issue.get("key"),
+                )
+                return True
         status = (fields.get("status") or {}).get("name", "")
         if isinstance(status, str) and status.lower() == "impediment":
             logger.debug("Issue %s flagged as impediment via status", issue.get("key"))
