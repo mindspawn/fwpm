@@ -20,6 +20,7 @@ from .defaults import (
     LLM_RESPONSE_OUTPUT_DIR,
     CONFLUENCE_OUTPUT_FILE,
 )
+from .defines import LABEL_STATUS_MAP
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -59,6 +60,7 @@ class Workflow:
             "reporter",
             "priority",
             "labels",
+            "components",
             "created",
             "updated",
             "flagged",
@@ -223,17 +225,15 @@ class Workflow:
         )
 
     def _build_user_prompt(self, filter_cfg: FilterConfig, issue_text: str) -> str:
-        now_pst = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M")
         context = issue_text.strip()
         parts = [
             "Use the following context as your learned knowledge, inside <context></context> XML tags.",
             f"<context>{context}</context>",
-            f"The current date and time is {now_pst} PST.",
             "When answering the user: If you don't know, just say you don't know.",
-            "Avoid mentioning that you obtained the information from the context.,"
+            "Avoid mentioning that you obtained the information from the context.",
             "Answer according to the language of the user's question.",
             "Given the context information, answer the query.",
-            "Query: ",
+            "Query:",
             filter_cfg.llm.prompt.strip(),
         ]
         return "\n\n".join(part for part in parts if part)
@@ -339,16 +339,9 @@ class Workflow:
         return tuple(label for label in labels if isinstance(label, str) and label)
 
     def _components(self, issue: dict) -> Tuple[str, ...]:
-        components = (issue.get("fields") or {}).get("components") or []
-        result: List[str] = []
-        for component in components:
-            if isinstance(component, dict):
-                name = component.get("name")
-                if isinstance(name, str) and name:
-                    result.append(name)
-            elif isinstance(component, str) and component:
-                result.append(component)
-        return tuple(result)
+        value = (issue.get("fields") or {}).get("components") or []
+        values = self._extract_field_values(value)
+        return tuple(values)
 
     def _product_names(self, issue: dict) -> str:
         value = (issue.get("fields") or {}).get("customfield_10719")

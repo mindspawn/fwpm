@@ -8,6 +8,7 @@ import markdown
 from urllib.parse import quote_plus
 
 from .defaults import INFO_HEADER
+from .defines import LABEL_STATUS_MAP
 
 def build_confluence_storage(
     jira_base_url: str,
@@ -96,7 +97,7 @@ def build_confluence_storage(
             assignee_html = f"<a href=\"{html.escape(assignee_url)}\">{safe_assignee_name}</a>"
         reporter_html = html.escape(reporter_name or "Unknown")
         priority_html = html.escape(priority_name or "None")
-        labels_html = ", ".join(html.escape(label) for label in labels) if labels else "None"
+        labels_html = _format_labels(labels)
         components_html = (
             ", ".join(html.escape(component) for component in components)
             if components
@@ -164,3 +165,22 @@ def _impediment_badge() -> str:
         '<ac:parameter ac:name="subtle">false</ac:parameter>'
         "</ac:structured-macro> "
     )
+
+
+def _format_labels(labels: Tuple[str, ...]) -> str:
+    if not labels:
+        return "None"
+    formatted = []
+    for label in labels:
+        color = LABEL_STATUS_MAP.get(label)
+        if color:
+            formatted.append(
+                '<ac:structured-macro ac:name="status">'
+                f'<ac:parameter ac:name="colour">{html.escape(color)}</ac:parameter>'
+                f'<ac:parameter ac:name="title">{html.escape(label)}</ac:parameter>'
+                '<ac:parameter ac:name="subtle">false</ac:parameter>'
+                "</ac:structured-macro>"
+            )
+        else:
+            formatted.append(html.escape(label))
+    return ", ".join(formatted)
