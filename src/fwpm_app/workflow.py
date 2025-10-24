@@ -329,7 +329,8 @@ class Workflow:
             text = self._comment_text(comment)
             if not text:
                 text = "<no content>"
-            formatted.append(f"- {created_local} – {author}: {text.replace('\r\n', '\n').strip()}")
+            cleaned = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+            formatted.append(f"- {created_local} – {author}: {cleaned}")
         return "\n".join(formatted)
 
     def _build_background_text(
