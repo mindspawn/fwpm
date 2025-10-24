@@ -330,8 +330,8 @@ class Workflow:
             if not text:
                 text = "<no content>"
             cleaned = text.replace("\r\n", "\n").replace("\r", "\n").strip()
-            formatted.append(f"comment at {created_local} from {author}: {cleaned}")
-        return "\n".join(formatted)
+            formatted.append(f"[COMMENT at {created_local} from {author}]\n{cleaned}")
+        return "\n\n".join(formatted)
 
     def _build_background_text(
         self, issue: dict, older_comments: List[Tuple[dict, datetime]]
