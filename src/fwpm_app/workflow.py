@@ -298,15 +298,14 @@ class Workflow:
         except OSError:
             logger.warning("Failed to persist prompt for %s at %s", issue_key, path)
 
-    def _split_recent_comments(
+    def _collect_recent_comments(
         self, issue: dict
-    ) -> Tuple[List[Tuple[dict, datetime]], List[Tuple[dict, datetime]]]:
+    ) -> List[Tuple[dict, datetime]]:
         fields = issue.get("fields") or {}
         comment_field = fields.get("comment") or {}
         comments = comment_field.get("comments", []) or []
         cutoff = datetime.now(timezone.utc) - timedelta(hours=self.app_config.comment_lookback_hours)
         recent: List[Tuple[dict, datetime]] = []
-        older: List[Tuple[dict, datetime]] = []
         normalized_ignore = {value.lower() for value in IGNORE_COMMENTS_FROM}
         for comment in comments:
             author_info = comment.get("author") or {}
@@ -329,9 +328,7 @@ class Workflow:
             entry = (comment, created_dt)
             if created_dt >= cutoff:
                 recent.append(entry)
-            else:
-                older.append(entry)
-        return recent, older
+        return recent
 
     def _format_comment_entries(self, entries: List[Tuple[dict, datetime]]) -> str:
         if not entries:
@@ -349,7 +346,7 @@ class Workflow:
         return "\n\n".join(formatted)
 
     def _build_background_text(
-        self, issue: dict, older_comments: List[Tuple[dict, datetime]]
+        self, issue: dict
     ) -> str:
         fields = issue.get("fields") or {}
         summary = fields.get("summary") or ""
@@ -360,14 +357,6 @@ class Workflow:
             desc_text = self._clean_text(description)
             if desc_text:
                 lines.append("Description:\n" + desc_text)
-
-        if self.app_config.include_older_comments_background:
-            older_text = self._format_comment_entries(older_comments)
-            if older_text:
-                lines.append(
-                    f"Older comments (before last {self.app_config.comment_lookback_hours} hours):\n"
-                    + older_text
-                )
 
         return "\n\n".join(lines)
 
