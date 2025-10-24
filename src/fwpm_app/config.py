@@ -53,6 +53,9 @@ class AppConfig:
     llm_allow_prompt_override: bool
     llm_use_system_prompt_file: bool
     llm_user_prompt: str
+    comment_lookback_hours: int
+    include_description_background: bool
+    include_older_comments_background: bool
     confluence_validate_html: bool
     verify_ssl: bool = True
     request_timeout: int = 30
@@ -95,6 +98,14 @@ class AppConfig:
         else:
             system_prompt = ""
 
+        try:
+            lookback_hours = int(optional("COMMENT_LOOKBACK_HOURS", "24"))
+        except ValueError as exc:
+            raise RuntimeError("COMMENT_LOOKBACK_HOURS must be an integer") from exc
+
+        include_description_bg = _as_bool(optional("INCLUDE_DESCRIPTION_IN_BACKGROUND", "true"))
+        include_older_comments_bg = _as_bool(optional("INCLUDE_OLDER_COMMENTS_IN_BACKGROUND", "false"))
+
         return cls(
             jira_base_url=require("JIRA_BASE_URL"),
             jira_username=require("JIRA_USERNAME"),
@@ -113,6 +124,9 @@ class AppConfig:
             llm_allow_prompt_override=_as_bool(optional("LLM_ALLOW_PROMPT_OVERRIDE", "false")),
             llm_use_system_prompt_file=use_prompt_file,
             llm_user_prompt=optional("LLM_USER_PROMPT", DEFAULT_SETTINGS["LLM_USER_PROMPT"]),
+            comment_lookback_hours=lookback_hours,
+            include_description_background=include_description_bg,
+            include_older_comments_background=include_older_comments_bg,
             confluence_validate_html=_as_bool(optional("CONFLUENCE_VALIDATE_HTML", "true")),
             verify_ssl=verify_ssl,
             request_timeout=timeout,

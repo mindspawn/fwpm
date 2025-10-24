@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Tuple, Optional
 import re
@@ -20,6 +20,7 @@ from .defaults import (
     LLM_RESPONSE_OUTPUT_DIR,
     CONFLUENCE_OUTPUT_FILE,
 )
+from bs4 import BeautifulSoup
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -107,8 +108,13 @@ class Workflow:
         placeholder_outputs = []
         for issue in issues:
             hydrated_issue = self._hydrate_issue(issue["key"])
-            issue_text = self._prepare_issue_text(hydrated_issue)
-            user_prompt = self._build_user_prompt(filter_cfg, issue_text)
+            recent_comments, older_comments = self._split_recent_comments(hydrated_issue)
+            if not recent_comments:
+                placeholder_outputs.append((hydrated_issue, self._no_recent_activity_message()))
+                continue
+            background_text = self._build_background_text(hydrated_issue, older_comments)
+            recent_text = self._format_comment_entries(recent_comments)
+            user_prompt = self._build_user_prompt(background_text, recent_text)
             self._persist_prompt(hydrated_issue.get("key"), user_prompt)
             placeholder_outputs.append((hydrated_issue, "This is where the LLM response is"))
         body = self._build_confluence_body(filter_id, filter_details, placeholder_outputs, filter_cfg)
@@ -150,9 +156,22 @@ class Workflow:
 
         for index, issue in enumerate(issues, start=1):
             hydrated_issue = self._hydrate_issue(issue["key"])
-            issue_text = self._prepare_issue_text(hydrated_issue)
-            logger.debug("Constructed issue text for %s", hydrated_issue.get("key"))
-            user_prompt = self._build_user_prompt(filter_cfg, issue_text)
+            recent_comments, older_comments = self._split_recent_comments(hydrated_issue)
+
+            if not recent_comments:
+                message = self._no_recent_activity_message()
+                outputs.append((hydrated_issue, message))
+                logger.info(
+                    "Skipping LLM for %s; no comment activity in the last %s hours",
+                    hydrated_issue.get("key"),
+                    self.app_config.comment_lookback_hours,
+                )
+                continue
+
+            background_text = self._build_background_text(hydrated_issue, older_comments)
+            recent_comments_text = self._format_comment_entries(recent_comments)
+
+            user_prompt = self._build_user_prompt(background_text, recent_comments_text)
             self._persist_prompt(hydrated_issue.get("key"), user_prompt)
             logger.info(
                 "Sending LLM prompt (%s/%s) for issue %s",
@@ -225,16 +244,30 @@ class Workflow:
             issue_blocks=issue_blocks,
         )
 
-    def _build_user_prompt(self, filter_cfg: FilterConfig, issue_text: str) -> str:
+    def _build_user_prompt(self, background_text: str, recent_comments_text: str) -> str:
         now_pacific = datetime.now(ZoneInfo("America/Los_Angeles"))
-        now_pst = now_pacific.strftime("%Y-%m-%d %H:%M %Z")
-        context = issue_text.strip()
+        timestamp = now_pacific.strftime("%Y-%m-%d %H:%M %Z")
+
+        context_sections = [
+            "Background:",
+            background_text.strip(),
+            "",
+            f"Recent comment activity (last {self.app_config.comment_lookback_hours} hours):",
+            recent_comments_text.strip(),
+        ]
+        context = "\n".join(section for section in context_sections if section)
+
+        query_line = (
+            f"{self.app_config.llm_user_prompt.strip()} Focus only on the recent comment activity "
+            f"from the last {self.app_config.comment_lookback_hours} hours."
+        )
+
         parts = [
             "Use the following context as your learned knowledge, inside <context></context> XML tags.",
             "<context>",
             context,
             "</context>",
-            f"The current date and time is {now_pst}.",
+            f"The current date and time is {timestamp}.",
             "When answering the user: If you don't know, just say you don't know.",
             "Avoid mentioning that you obtained the information from the context.",
             "Answer according to the language of the user's question.",
@@ -243,12 +276,9 @@ class Workflow:
             "Base your answer solely on the given context. Do not infer, assume, or fabricate information.",
             "Given the context information, answer the query.",
             "Query:",
-            self.app_config.llm_user_prompt.strip(),
+            query_line,
         ]
         return "\n\n".join(part for part in parts if part)
-
-    def _prepare_issue_text(self, issue: dict) -> str:
-        return self.issue_content_provider.build_issue_text(issue)
 
     def _persist_prompt(self, issue_key: str | None, prompt_text: str) -> None:
         if not issue_key or prompt_text is None:
@@ -266,6 +296,68 @@ class Workflow:
             path.write_text(prompt_text, encoding="utf-8")
         except OSError:
             logger.warning("Failed to persist prompt for %s at %s", issue_key, path)
+
+    def _split_recent_comments(
+        self, issue: dict
+    ) -> Tuple[List[Tuple[dict, datetime]], List[Tuple[dict, datetime]]]:
+        fields = issue.get("fields") or {}
+        comment_field = fields.get("comment") or {}
+        comments = comment_field.get("comments", []) or []
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.app_config.comment_lookback_hours)
+        recent: List[Tuple[dict, datetime]] = []
+        older: List[Tuple[dict, datetime]] = []
+        for comment in comments:
+            created_raw = comment.get("created")
+            created_dt = self._parse_comment_datetime(created_raw)
+            if created_dt is None:
+                continue
+            entry = (comment, created_dt)
+            if created_dt >= cutoff:
+                recent.append(entry)
+            else:
+                older.append(entry)
+        return recent, older
+
+    def _format_comment_entries(self, entries: List[Tuple[dict, datetime]]) -> str:
+        if not entries:
+            return ""
+        pacific = ZoneInfo("America/Los_Angeles")
+        formatted: List[str] = []
+        for comment, created in entries:
+            author = ((comment.get("author") or {}).get("displayName")) or "Unknown"
+            created_local = created.astimezone(pacific).strftime("%Y-%m-%d %H:%M %Z")
+            text = self._comment_text(comment)
+            if not text:
+                text = "<no content>"
+            formatted.append(f"- {created_local} – {author}: {text.replace('\r\n', '\n').strip()}")
+        return "\n".join(formatted)
+
+    def _build_background_text(
+        self, issue: dict, older_comments: List[Tuple[dict, datetime]]
+    ) -> str:
+        fields = issue.get("fields") or {}
+        summary = fields.get("summary") or ""
+        lines: List[str] = [f"Issue: {issue.get('key')} – {summary}"]
+
+        if self.app_config.include_description_background:
+            description = fields.get("description")
+            desc_text = self._clean_text(description)
+            if desc_text:
+                lines.append("Description:\n" + desc_text)
+
+        if self.app_config.include_older_comments_background:
+            older_text = self._format_comment_entries(older_comments)
+            if older_text:
+                lines.append(
+                    f"Older comments (before last {self.app_config.comment_lookback_hours} hours):\n"
+                    + older_text
+                )
+
+        return "\n\n".join(lines)
+
+    def _no_recent_activity_message(self) -> str:
+        hours = self.app_config.comment_lookback_hours
+        return f"<p><em>No comment activity in the last {hours} hours.</em></p>"
 
     def _persist_llm_response(self, issue_key: Optional[str], response_text: str) -> None:
         if not issue_key or response_text is None:
@@ -380,6 +472,61 @@ class Workflow:
     def _status_name(self, issue: dict) -> str:
         status = (issue.get("fields") or {}).get("status") or {}
         return status.get("name", "Unknown")
+
+    def _comment_text(self, comment: dict) -> str:
+        rendered = comment.get("renderedBody")
+        if rendered:
+            return self._clean_text(rendered)
+        body = comment.get("body")
+        if isinstance(body, str):
+            return self._clean_text(body)
+        if isinstance(body, dict):
+            return self._clean_text(self._extract_adf_text(body))
+        return ""
+
+    def _clean_text(self, value) -> str:
+        if not value:
+            return ""
+        if not isinstance(value, str):
+            value = str(value)
+        text = BeautifulSoup(value, "html.parser").get_text("\n", strip=True)
+        text = re.sub(r"\[~(?:accountid:)?([^\]]+)\]", r"\1", text)
+        return text.strip()
+
+    def _extract_adf_text(self, node) -> str:
+        parts: List[str] = []
+
+        def walk(elem) -> None:
+            if isinstance(elem, dict):
+                elem_type = elem.get("type")
+                if elem_type == "text":
+                    text = elem.get("text", "")
+                    if text:
+                        parts.append(text)
+                elif elem_type == "hardBreak":
+                    parts.append("\n")
+                else:
+                    for child in elem.get("content", []) or []:
+                        walk(child)
+                    if elem_type in {"paragraph", "heading", "listItem"}:
+                        parts.append("\n")
+            elif isinstance(elem, list):
+                for child in elem:
+                    walk(child)
+
+        walk(node)
+        return "".join(parts).strip()
+
+    def _parse_comment_datetime(self, value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+        for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"):
+            try:
+                return datetime.strptime(value, fmt)
+            except ValueError:
+                continue
+        logger.debug("Unable to parse comment timestamp: %s", value)
+        return None
 
     def _extract_field_values(self, value) -> List[str]:
         results: List[str] = []

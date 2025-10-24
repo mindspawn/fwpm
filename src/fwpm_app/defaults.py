@@ -26,6 +26,9 @@ DEFAULT_SETTINGS = {
         "risks, and next steps. Highlight any impediments requiring leadership "
         "attention."
     ),
+    "COMMENT_LOOKBACK_HOURS": "24",
+    "INCLUDE_DESCRIPTION_IN_BACKGROUND": "true",
+    "INCLUDE_OLDER_COMMENTS_IN_BACKGROUND": "false",
     "LLM_ALLOW_PROMPT_OVERRIDE": "false",
     "HTTP_VERIFY_SSL": "true",
     "HTTP_REQUEST_TIMEOUT": "30",

@@ -43,6 +43,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Skip HTML sanity check before uploading to Confluence.",
     )
     parser.add_argument(
+        "--comment-lookback-hours",
+        type=int,
+        default=None,
+        help="Override the number of hours used to consider recent comments.",
+    )
+    parser.add_argument(
+        "--include-description-background",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Include the issue description in the background context.",
+    )
+    parser.add_argument(
+        "--include-older-comments-background",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Include comments outside the recent window in the background context.",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -60,6 +78,18 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         logging.getLogger(__name__).error(str(exc))
         return 1
+
+    if args.comment_lookback_hours is not None:
+        if args.comment_lookback_hours <= 0:
+            logging.getLogger(__name__).error("--comment-lookback-hours must be a positive integer.")
+            return 1
+        app_config.comment_lookback_hours = args.comment_lookback_hours
+
+    if args.include_description_background is not None:
+        app_config.include_description_background = args.include_description_background
+
+    if args.include_older_comments_background is not None:
+        app_config.include_older_comments_background = args.include_older_comments_background
 
     jira_client = JiraClient(
         base_url=app_config.jira_base_url,
