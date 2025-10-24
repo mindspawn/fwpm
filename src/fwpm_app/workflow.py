@@ -109,11 +109,11 @@ class Workflow:
         placeholder_outputs = []
         for issue in issues:
             hydrated_issue = self._hydrate_issue(issue["key"])
-            recent_comments, older_comments = self._split_recent_comments(hydrated_issue)
+            recent_comments = self._collect_recent_comments(hydrated_issue)
             if not recent_comments:
                 placeholder_outputs.append((hydrated_issue, self._no_recent_activity_message()))
                 continue
-            background_text = self._build_background_text(hydrated_issue, older_comments)
+            background_text = self._build_background_text(hydrated_issue)
             recent_text = self._format_comment_entries(recent_comments)
             user_prompt = self._build_user_prompt(background_text, recent_text)
             self._persist_prompt(hydrated_issue.get("key"), user_prompt)
@@ -157,7 +157,7 @@ class Workflow:
 
         for index, issue in enumerate(issues, start=1):
             hydrated_issue = self._hydrate_issue(issue["key"])
-            recent_comments, older_comments = self._split_recent_comments(hydrated_issue)
+            recent_comments = self._collect_recent_comments(hydrated_issue)
 
             if not recent_comments:
                 message = self._no_recent_activity_message()
@@ -169,7 +169,7 @@ class Workflow:
                 )
                 continue
 
-            background_text = self._build_background_text(hydrated_issue, older_comments)
+            background_text = self._build_background_text(hydrated_issue)
             recent_comments_text = self._format_comment_entries(recent_comments)
 
             user_prompt = self._build_user_prompt(background_text, recent_comments_text)

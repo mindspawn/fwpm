@@ -55,12 +55,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Include the issue description in the background context.",
     )
     parser.add_argument(
-        "--include-older-comments-background",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Include comments outside the recent window in the background context.",
-    )
-    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -88,8 +82,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.include_description_background is not None:
         app_config.include_description_background = args.include_description_background
 
-    if args.include_older_comments_background is not None:
-        app_config.include_older_comments_background = args.include_older_comments_background
 
     jira_client = JiraClient(
         base_url=app_config.jira_base_url,
