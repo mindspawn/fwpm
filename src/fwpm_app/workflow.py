@@ -307,6 +307,8 @@ class Workflow:
         recent: List[Tuple[dict, datetime]] = []
         older: List[Tuple[dict, datetime]] = []
         for comment in comments:
+            if self._should_ignore_comment(comment):
+                continue
             created_raw = comment.get("created")
             created_dt = self._parse_comment_datetime(created_raw)
             if created_dt is None:
@@ -322,8 +324,18 @@ class Workflow:
         if not entries:
             return ""
         pacific = ZoneInfo("America/Los_Angeles")
+        normalized_ignore = {value.lower() for value in IGNORE_COMMENTS_FROM}
         formatted: List[str] = []
         for comment, created in entries:
+            author_info = comment.get("author") or {}
+            identifiers = [
+                author_info.get("accountId"),
+                author_info.get("name"),
+                author_info.get("key"),
+                author_info.get("emailAddress"),
+            ]
+            if any(isinstance(identifier, str) and identifier.lower() in normalized_ignore for identifier in identifiers if identifier):
+                continue
             author = ((comment.get("author") or {}).get("displayName")) or "Unknown"
             created_local = created.astimezone(pacific).strftime("%Y-%m-%d %H:%M %Z")
             text = self._comment_text(comment)
