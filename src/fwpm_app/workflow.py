@@ -219,11 +219,17 @@ class Workflow:
 
     def _build_user_prompt(self, filter_cfg: FilterConfig, issue_text: str) -> str:
         now_pst = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M")
+        context = issue_text.strip()
         parts = [
-            filter_cfg.llm.prompt.strip(),
+            "Use the following context as your learned knowledge, inside <context></context> XML tags.",
+            f"<context>{context}</context>",
             f"The current date and time is {now_pst} PST.",
-            "JIRA Extracted Text:",
-            issue_text.strip(),
+            "When answering the user: If you don't know, just say you don't know.",
+            "Avoid mentioning that you obtained the information from the context.,"
+            "Answer according to the language of the user's question.",
+            "Given the context information, answer the query.",
+            "Query: ",
+            filter_cfg.llm.prompt.strip(),
         ]
         return "\n\n".join(part for part in parts if part)
 
