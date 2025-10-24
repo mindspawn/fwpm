@@ -169,6 +169,7 @@ class Workflow:
                 frequency_penalty=filter_cfg.llm.frequency_penalty,
                 presence_penalty=filter_cfg.llm.presence_penalty,
             )
+            response_text = self._strip_think_blocks(response_text)
             prompt_elapsed = time.time() - prompt_start
             logger.info(
                 "LLM response received for %s (elapsed %.2fs)",
@@ -301,6 +302,11 @@ class Workflow:
         normalized = normalized.replace("\u200b", "")
         normalized = re.sub(r"[^\x00-\x7F]+", "", normalized)
         return normalized
+
+    def _strip_think_blocks(self, text: str) -> str:
+        if not text:
+            return text
+        return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
 
     def _validate_html(self, body: str) -> None:
         validator = _HTMLStructureValidator()
