@@ -44,7 +44,7 @@ def build_confluence_storage(
         reporter_name, priority_name, labels, components, status, is_impediment,
         product, customer, generated_text)`.
     """
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    timestamp = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M %Z")
     filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={quote_plus(filter_id)}"
     safe_filter_id = html.escape(filter_id)
     safe_filter_name = html.escape(filter_name or "")
@@ -60,7 +60,7 @@ def build_confluence_storage(
         [
             "<h1>Info</h1>",
             info_panel,
-            f"<p><strong>Generated:</strong> {html.escape(timestamp)} UTC</p>",
+            f"<p><strong>Generated:</strong> {html.escape(timestamp)}</p>",
             (
                 f"<p><strong>Filter:</strong> <a href=\"{filter_url}\">{safe_filter_id}</a>"
                 f"{filter_name_fragment}</p>"
