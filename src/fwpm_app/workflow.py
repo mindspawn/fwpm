@@ -62,6 +62,8 @@ class Workflow:
             "created",
             "updated",
             "flagged",
+            "customfield_10719",
+            "customfield_23301",
         ]
         if include_comments:
             fields.append("comment")
@@ -204,6 +206,8 @@ class Workflow:
                 self._labels(issue),
                 self._status_name(issue),
                 self._is_impediment(issue),
+                self._product_names(issue),
+                self._customer_names(issue),
                 response_text,
             )
             for issue, response_text in llm_outputs
@@ -333,9 +337,41 @@ class Workflow:
         labels = (issue.get("fields") or {}).get("labels") or []
         return tuple(label for label in labels if isinstance(label, str) and label)
 
+    def _product_names(self, issue: dict) -> str:
+        value = (issue.get("fields") or {}).get("customfield_10719")
+        values = self._extract_field_values(value)
+        return ", ".join(values) if values else "Unknown"
+
+    def _customer_names(self, issue: dict) -> str:
+        value = (issue.get("fields") or {}).get("customfield_23301")
+        values = self._extract_field_values(value)
+        return ", ".join(values) if values else "Unknown"
+
     def _status_name(self, issue: dict) -> str:
         status = (issue.get("fields") or {}).get("status") or {}
         return status.get("name", "Unknown")
+
+    def _extract_field_values(self, value) -> List[str]:
+        results: List[str] = []
+        if value is None:
+            return results
+        if isinstance(value, str):
+            if value.strip():
+                results.append(value.strip())
+            return results
+        if isinstance(value, dict):
+            for key in ("value", "name", "displayName", "title"):
+                field_val = value.get(key)
+                if isinstance(field_val, str) and field_val.strip():
+                    results.append(field_val.strip())
+            if "children" in value and isinstance(value["children"], list):
+                for child in value["children"]:
+                    results.extend(self._extract_field_values(child))
+            return results
+        if isinstance(value, list):
+            for item in value:
+                results.extend(self._extract_field_values(item))
+        return [v for v in results if v]
 
     def _is_impediment(self, issue: dict) -> bool:
         fields = issue.get("fields") or {}
@@ -392,6 +428,8 @@ class Workflow:
             "updated",
             "flagged",
             "customfield_16801",
+            "customfield_10719",
+            "customfield_23301",
         ]
         return self.jira_client.get_issue(
             issue_key,

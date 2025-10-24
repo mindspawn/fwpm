@@ -15,7 +15,7 @@ def build_confluence_storage(
     filter_name: str,
     total_issues: int,
     issue_blocks: Iterable[
-        Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str, bool, str]
+        Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str, bool, str, str, str]
     ],
 ) -> str:
     """
@@ -66,6 +66,8 @@ def build_confluence_storage(
         labels,
         status,
         is_impediment,
+        product,
+        customer,
         llm_text,
     ) in issue_blocks:
         url = f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
@@ -93,10 +95,18 @@ def build_confluence_storage(
             f"<strong>Labels:</strong> {labels_html}"
             "</p>"
         )
+        product_html = html.escape(product or "Unknown")
+        customer_html = html.escape(customer or "Unknown")
+        product_customer_line = (
+            "<p>"
+            f"<strong>Product:</strong> {product_html} | "
+            f"<strong>Customer:</strong> {customer_html}"
+            "</p>"
+        )
         safe_body = _render_markdown(llm_text)
         llm_section = f"<p><strong>Generated Notes:</strong></p>{safe_body}"
 
-        section = "".join([issue_heading, assignee_line, llm_section])
+        section = "".join([issue_heading, assignee_line, product_customer_line, llm_section])
         sections.append(section)
 
     return toc_macro + info_section + "".join(sections)
