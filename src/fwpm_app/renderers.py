@@ -128,9 +128,7 @@ def build_confluence_storage(
             "</p>"
         )
         safe_body = _render_markdown(llm_text)
-        llm_section = f"<p><strong>Generated Notes:</strong></p>{safe_body}"
-
-        section = "".join([issue_heading, assignee_line, product_customer_line, llm_section])
+        section = "".join([issue_heading, assignee_line, product_customer_line, safe_body])
         sections.append(section)
 
     return toc_macro + info_section + "".join(sections)
