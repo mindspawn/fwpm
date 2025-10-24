@@ -277,7 +277,7 @@ class Workflow:
             "Base your answer solely on the given context. Do not infer, assume, or fabricate information.",
             "Given the context information, answer the query.",
             "Query:",
-            query_line,
+            "Summarize all the of above JIRA comments. Bullets are preferred for the summary."
         ]
         return "\n\n".join(part for part in parts if part)
 
