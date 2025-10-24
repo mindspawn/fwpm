@@ -238,6 +238,8 @@ class Workflow:
             "When answering the user: If you don't know, just say you don't know.",
             "Avoid mentioning that you obtained the information from the context.",
             "Answer according to the language of the user's question.",
+            "Maintain a professional tone",
+            "Do not generate unnecessary text such as - Here's a summary",
             "Given the context information, answer the query.",
             "Query:",
             filter_cfg.llm.prompt.strip(),
