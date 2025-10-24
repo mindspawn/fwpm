@@ -170,6 +170,7 @@ class Workflow:
                 presence_penalty=filter_cfg.llm.presence_penalty,
             )
             response_text = self._strip_think_blocks(response_text)
+            response_text = self._demote_markdown_headings(response_text)
             prompt_elapsed = time.time() - prompt_start
             logger.info(
                 "LLM response received for %s (elapsed %.2fs)",
@@ -307,6 +308,16 @@ class Workflow:
         if not text:
             return text
         return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+
+    def _demote_markdown_headings(self, text: str) -> str:
+        if not text:
+            return text
+        return re.sub(
+            r"^(#{1,6})\s*(.+)$",
+            lambda m: f"**{m.group(2).strip()}**",
+            text,
+            flags=re.MULTILINE,
+        )
 
     def _validate_html(self, body: str) -> None:
         validator = _HTMLStructureValidator()
