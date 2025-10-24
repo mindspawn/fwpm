@@ -145,12 +145,11 @@ def _render_markdown(text: str) -> str:
 def _build_info_panel(text: str) -> str:
     if not text:
         return ""
-    escaped_text = html.escape(text)
     return (
         '<ac:structured-macro ac:name="info">'
         "<ac:parameter ac:name=\"icon\">information</ac:parameter>"
         "<ac:rich-text-body>"
-        f"<p>{escaped_text}</p>"
+        f"{text}"
         "</ac:rich-text-body>"
         "</ac:structured-macro>"
     )
