@@ -21,6 +21,11 @@ DEFAULT_SETTINGS = {
     "LLM_TOP_P": "0.9",
     "LLM_FREQUENCY_PENALTY": "0",
     "LLM_PRESENCE_PENALTY": "0.1",
+    "LLM_USER_PROMPT": (
+        "Summarize the issue focusing on key decisions, blockers, owners, "
+        "risks, and next steps. Highlight any impediments requiring leadership "
+        "attention."
+    ),
     "LLM_ALLOW_PROMPT_OVERRIDE": "false",
     "HTTP_VERIFY_SSL": "true",
     "HTTP_REQUEST_TIMEOUT": "30",

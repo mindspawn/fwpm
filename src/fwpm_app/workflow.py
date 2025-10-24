@@ -243,7 +243,7 @@ class Workflow:
             "Base your answer solely on the given context. Do not infer, assume, or fabricate information.",
             "Given the context information, answer the query.",
             "Query:",
-            filter_cfg.llm.prompt.strip(),
+            self.app_config.llm_user_prompt.strip(),
         ]
         return "\n\n".join(part for part in parts if part)
 

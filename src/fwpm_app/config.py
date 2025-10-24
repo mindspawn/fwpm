@@ -20,7 +20,6 @@ class ConfluenceConfig:
 
 @dataclasses.dataclass
 class LLMConfig:
-    prompt: str
     model: str
     system_prompt: str
     temperature: float
@@ -53,6 +52,7 @@ class AppConfig:
     llm_system_prompt: str
     llm_allow_prompt_override: bool
     llm_use_system_prompt_file: bool
+    llm_user_prompt: str
     confluence_validate_html: bool
     verify_ssl: bool = True
     request_timeout: int = 30
@@ -112,6 +112,7 @@ class AppConfig:
             llm_system_prompt=system_prompt,
             llm_allow_prompt_override=_as_bool(optional("LLM_ALLOW_PROMPT_OVERRIDE", "false")),
             llm_use_system_prompt_file=use_prompt_file,
+            llm_user_prompt=optional("LLM_USER_PROMPT", DEFAULT_SETTINGS["LLM_USER_PROMPT"]),
             confluence_validate_html=_as_bool(optional("CONFLUENCE_VALIDATE_HTML", "true")),
             verify_ssl=verify_ssl,
             request_timeout=timeout,
@@ -131,15 +132,18 @@ def parse_filter_description(description: Optional[str], defaults: AppConfig) ->
         raise RuntimeError("Filter description YAML must be a mapping.")
 
     confluence_section = _ensure_section(data, "confluence")
-    llm_section = _ensure_section(data, "llm")
+    llm_section_raw = data.get("llm", {})
+    if llm_section_raw is None:
+        llm_section_raw = {}
+    if not isinstance(llm_section_raw, dict):
+        raise RuntimeError("Filter description 'llm' section must be a mapping if provided.")
+    llm_section = llm_section_raw
 
     confluence = ConfluenceConfig(
         space_key=_require_str(confluence_section, "space_key"),
         parent_page_id=_require_int(confluence_section, "parent_page_id"),
         page_name=_require_str(confluence_section, "page_name"),
     )
-
-    prompt = _require_str(llm_section, "prompt")
 
     requested_system_prompt = llm_section.get("system_prompt")
     if requested_system_prompt and not defaults.llm_allow_prompt_override:
@@ -152,7 +156,6 @@ def parse_filter_description(description: Optional[str], defaults: AppConfig) ->
         system_prompt = defaults.llm_system_prompt
 
     llm = LLMConfig(
-        prompt=prompt,
         model=llm_section.get("model", defaults.llm_model),
         system_prompt=system_prompt,
         temperature=_require_float(llm_section, "temperature", defaults.llm_temperature),
