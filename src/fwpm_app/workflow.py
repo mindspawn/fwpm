@@ -204,6 +204,7 @@ class Workflow:
                 self._reporter_name(issue),
                 self._priority_name(issue),
                 self._labels(issue),
+                self._components(issue),
                 self._status_name(issue),
                 self._is_impediment(issue),
                 self._product_names(issue),
@@ -336,6 +337,18 @@ class Workflow:
     def _labels(self, issue: dict) -> Tuple[str, ...]:
         labels = (issue.get("fields") or {}).get("labels") or []
         return tuple(label for label in labels if isinstance(label, str) and label)
+
+    def _components(self, issue: dict) -> Tuple[str, ...]:
+        components = (issue.get("fields") or {}).get("components") or []
+        result: List[str] = []
+        for component in components:
+            if isinstance(component, dict):
+                name = component.get("name")
+                if isinstance(name, str) and name:
+                    result.append(name)
+            elif isinstance(component, str) and component:
+                result.append(component)
+        return tuple(result)
 
     def _product_names(self, issue: dict) -> str:
         value = (issue.get("fields") or {}).get("customfield_10719")

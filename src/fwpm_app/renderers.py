@@ -15,7 +15,21 @@ def build_confluence_storage(
     filter_name: str,
     total_issues: int,
     issue_blocks: Iterable[
-        Tuple[str, str, str, str | None, str, str, Tuple[str, ...], str, bool, str, str, str]
+        Tuple[
+            str,
+            str,
+            str,
+            str | None,
+            str,
+            str,
+            Tuple[str, ...],
+            Tuple[str, ...],
+            str,
+            bool,
+            str,
+            str,
+            str,
+        ]
     ],
 ) -> str:
     """
@@ -27,7 +41,8 @@ def build_confluence_storage(
         filter_name: The JIRA filter name.
         total_issues: Count of issues returned by the filter.
         issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url,
-        reporter_name, priority_name, labels, status, is_impediment, generated_text)`.
+        reporter_name, priority_name, labels, components, status, is_impediment,
+        product, customer, generated_text)`.
     """
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={quote_plus(filter_id)}"
@@ -64,6 +79,7 @@ def build_confluence_storage(
         reporter_name,
         priority_name,
         labels,
+        components,
         status,
         is_impediment,
         product,
@@ -81,6 +97,11 @@ def build_confluence_storage(
         reporter_html = html.escape(reporter_name or "Unknown")
         priority_html = html.escape(priority_name or "None")
         labels_html = ", ".join(html.escape(label) for label in labels) if labels else "None"
+        components_html = (
+            ", ".join(html.escape(component) for component in components)
+            if components
+            else "None"
+        )
         issue_heading = (
             f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}"
             f" ({safe_status})</h1>"
@@ -92,7 +113,8 @@ def build_confluence_storage(
             f"<strong>Assignee:</strong> {assignee_html} | "
             f"<strong>Reporter:</strong> {reporter_html} | "
             f"<strong>Priority:</strong> {priority_html} | "
-            f"<strong>Labels:</strong> {labels_html}"
+            f"<strong>Labels:</strong> {labels_html} | "
+            f"<strong>Components:</strong> {components_html}"
             "</p>"
         )
         product_html = html.escape(product or "Unknown")
