@@ -224,14 +224,15 @@ class Workflow:
         )
 
     def _build_user_prompt(self, filter_cfg: FilterConfig, issue_text: str) -> str:
-        now_pst = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M")
+        now_pacific = datetime.now(ZoneInfo("America/Los_Angeles"))
+        now_pst = now_pacific.strftime("%Y-%m-%d %H:%M %Z")
         context = issue_text.strip()
         parts = [
             "Use the following context as your learned knowledge, inside <context></context> XML tags.",
             "<context>",
             context,
             "</context>",
-            f"The current date and time is {now_pst} PST.",
+            f"The current date and time is {now_pst}.",
             "When answering the user: If you don't know, just say you don't know.",
             "Avoid mentioning that you obtained the information from the context.",
             "Answer according to the language of the user's question.",
