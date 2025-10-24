@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Iterable, Tuple
 
 import markdown
 from urllib.parse import quote_plus
+
+from zoneinfo import ZoneInfo
 
 from .defaults import INFO_HEADER, LABEL_STATUS_MAP
 
