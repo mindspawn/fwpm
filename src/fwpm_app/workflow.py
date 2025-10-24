@@ -19,6 +19,7 @@ from .defaults import (
     LLM_REQUEST_DELAY_SECONDS,
     LLM_RESPONSE_OUTPUT_DIR,
     CONFLUENCE_OUTPUT_FILE,
+    IGNORE_COMMENTS_FROM,
 )
 from bs4 import BeautifulSoup
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
