@@ -20,7 +20,6 @@ from .defaults import (
     LLM_RESPONSE_OUTPUT_DIR,
     CONFLUENCE_OUTPUT_FILE,
 )
-from .defines import LABEL_STATUS_MAP
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient

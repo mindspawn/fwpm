@@ -55,3 +55,10 @@ INFO_HEADER = (
 
 SYSTEM_PROMPT_FILE = Path("prompts/system_prompt.txt")
 TRACE_NAME = "myapp"
+
+# Whether to load the repository system prompt file by default.
+USE_SYSTEM_PROMPT_FILE = False
+
+# Mapping of label names to Confluence status macro colours.
+# Example: {"Blocked": "Red", "On Track": "Green"}
+LABEL_STATUS_MAP = {}

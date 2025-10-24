@@ -7,8 +7,7 @@ from typing import Iterable, Tuple
 import markdown
 from urllib.parse import quote_plus
 
-from .defaults import INFO_HEADER
-from .defines import LABEL_STATUS_MAP
+from .defaults import INFO_HEADER, LABEL_STATUS_MAP
 
 def build_confluence_storage(
     jira_base_url: str,

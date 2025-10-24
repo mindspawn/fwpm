@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from .defaults import DEFAULT_SETTINGS, SYSTEM_PROMPT_FILE
+from .defaults import DEFAULT_SETTINGS, SYSTEM_PROMPT_FILE, USE_SYSTEM_PROMPT_FILE
 
 
 @dataclasses.dataclass
