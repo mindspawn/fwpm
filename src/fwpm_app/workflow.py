@@ -24,7 +24,7 @@ from .defaults import (
     CONFLUENCE_OUTPUT_FILE,
     IGNORE_COMMENTS_FROM,
 )
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -60,6 +60,35 @@ table { border-collapse: collapse; }
 .toc-macro { margin-bottom: 16px; }
 </style>
 """
+
+STATUS_NAME_HEX = {
+    "red": "#FF5630",
+    "yellow": "#FFAB00",
+    "green": "#36B37E",
+    "blue": "#4C9AFF",
+    "grey": "#6B778C",
+    "gray": "#6B778C",
+    "purple": "#6554C0",
+    "teal": "#00B8D9",
+    "lime": "#A5D753",
+    "brown": "#8C6E64",
+}
+
+STATUS_CLASS_HEX = {
+    "aui-lozenge-success": "#57D9A3",
+    "aui-lozenge-complete": "#4C9AFF",
+    "aui-lozenge-current": "#FFAB00",
+    "aui-lozenge-moved": "#6554C0",
+    "aui-lozenge-error": "#FF5630",
+    "aui-lozenge-removed": "#FF5630",
+    "aui-lozenge-default": "#7A869A",
+    "aui-lozenge": "#7A869A",
+}
+
+DEFAULT_STATUS_HEX = "#7A869A"
+SUBTLE_BACKGROUND_HEX = "#DFE1E6"
+SUBTLE_BORDER_HEX = "#A5ADBA"
+DEFAULT_TEXT_COLOR = "#172B4D"
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +253,8 @@ class Workflow:
         if base_link:
             base_href = base_link.rstrip("/") + "/"
         base_tag = f"<base href=\"{html.escape(base_href)}\" />" if base_href else ""
+
+        rendered_html = self._enhance_email_html(rendered_html, storage_body)
 
         html_message = (
             "<html><head>"
@@ -755,6 +786,199 @@ class Workflow:
             )
             return True
         return False
+
+    def _enhance_email_html(self, rendered_html: str, storage_body: str) -> str:
+        """
+        Inline key Confluence macro styles so emails render without the official stylesheet.
+
+        Args:
+            rendered_html: HTML returned from the Confluence export view.
+            storage_body: Storage-format HTML used to build the page (fallback).
+        """
+        candidate = rendered_html or storage_body or ""
+        if not candidate:
+            return ""
+        soup = BeautifulSoup(candidate, "html.parser")
+
+        # Convert storage-format macros if they are still present (export fallback).
+        if soup.find("ac:structured-macro"):
+            soup = self._materialize_structured_macros(soup)
+
+        self._style_status_macros(soup)
+        self._style_info_macros(soup)
+        return str(soup)
+
+    def _materialize_structured_macros(self, soup: BeautifulSoup) -> BeautifulSoup:
+        for macro in list(soup.find_all("ac:structured-macro")):
+            macro_name = macro.get("ac:name", "").lower()
+            if macro_name == "status":
+                replacement = self._build_status_span_from_macro(soup, macro)
+                macro.replace_with(replacement)
+            elif macro_name == "info":
+                replacement = self._build_info_panel_from_macro(soup, macro)
+                macro.replace_with(replacement)
+            else:
+                macro.decompose()
+        return soup
+
+    def _build_status_span_from_macro(self, soup: BeautifulSoup, macro: Tag) -> Tag:
+        params = {
+            param.get("ac:name", "").lower(): (param.string or "").strip()
+            for param in macro.find_all("ac:parameter")
+        }
+        title = params.get("title") or (macro.get_text() or "").strip() or "Status"
+        colour = params.get("colour") or params.get("color") or ""
+        subtle = params.get("subtle", "").lower() == "true"
+        span = soup.new_tag("span")
+        span.string = title
+        self._apply_status_styles(span, colour, subtle)
+        return span
+
+    def _build_info_panel_from_macro(self, soup: BeautifulSoup, macro: Tag) -> Tag:
+        params = {
+            param.get("ac:name", "").lower(): (param.string or "").strip()
+            for param in macro.find_all("ac:parameter")
+        }
+        icon = params.get("icon", "information").capitalize()
+        body = macro.find("ac:rich-text-body")
+        panel = soup.new_tag("div")
+        self._append_style(
+            panel,
+            (
+                "margin:16px 0; border-left:4px solid #0052CC; background-color:#E9F2FF; "
+                "border:1px solid #B3BAC5; border-radius:3px; padding:12px 16px; "
+                f"color:{DEFAULT_TEXT_COLOR};"
+            ),
+        )
+        heading = soup.new_tag("div")
+        self._append_style(heading, "font-weight:600; margin-bottom:8px;")
+        heading.string = icon
+        panel.append(heading)
+        content = soup.new_tag("div")
+        if body:
+            for child in list(body.contents):
+                content.append(child.extract())
+        panel.append(content)
+        return panel
+
+    def _style_status_macros(self, soup: BeautifulSoup) -> None:
+        for status in soup.select(".status-macro"):
+            classes = status.get("class", [])
+            subtle = "aui-lozenge-subtle" in classes if classes else False
+            colour = self._pick_colour_from_element(status)
+            self._apply_status_styles(status, colour, subtle)
+
+    def _style_info_macros(self, soup: BeautifulSoup) -> None:
+        def is_info_panel(tag: Tag) -> bool:
+            classes = tag.get("class", [])
+            return any(
+                cls.startswith("confluence-information-macro") or cls == "panel"
+                for cls in classes
+            )
+
+        for panel in soup.find_all(is_info_panel):
+            self._append_style(
+                panel,
+                (
+                    "margin:16px 0; border-left:4px solid #0052CC; background-color:#E9F2FF; "
+                    "border:1px solid #B3BAC5; border-radius:3px; padding:12px 16px; "
+                    f"color:{DEFAULT_TEXT_COLOR};"
+                ),
+            )
+            icon = panel.select_one(".confluence-information-macro-icon")
+            if icon:
+                self._append_style(icon, "display:none;")
+            body = panel.select_one(".confluence-information-macro-body")
+            if body:
+                self._append_style(body, "margin:0; padding:0;")
+
+    def _apply_status_styles(self, element: Tag, colour: str | None, subtle: bool) -> None:
+        colour_hex = self._normalise_colour(colour) or DEFAULT_STATUS_HEX
+        if subtle:
+            bg = SUBTLE_BACKGROUND_HEX
+            text_colour = DEFAULT_TEXT_COLOR
+            border = SUBTLE_BORDER_HEX
+        else:
+            bg = colour_hex
+            text_colour = self._status_text_colour(bg)
+            border = None
+
+        style_bits = [
+            "display:inline-block",
+            "padding:2px 8px",
+            "border-radius:3px",
+            "font-size:12px",
+            "font-weight:600",
+            "text-transform:none",
+            "line-height:1.4",
+            f"background-color:{bg}",
+            f"color:{text_colour}",
+        ]
+        if border:
+            style_bits.append(f"border:1px solid {border}")
+        self._append_style(element, "; ".join(style_bits) + ";")
+
+    def _pick_colour_from_element(self, element: Tag) -> str | None:
+        for attr in ("data-color", "data-bgcolor", "data-background"):
+            colour = element.get(attr)
+            if colour:
+                return colour
+        class_names = element.get("class", [])
+        for class_name in class_names:
+            if class_name in STATUS_CLASS_HEX:
+                return STATUS_CLASS_HEX[class_name]
+        style_attr = element.get("style", "")
+        match = re.search(r"background-color\s*:\s*([^;]+)", style_attr)
+        if match:
+            return match.group(1).strip()
+        return None
+
+    def _normalise_colour(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        colour = value.strip()
+        if not colour:
+            return None
+        lower = colour.lower()
+        if lower in STATUS_NAME_HEX:
+            return STATUS_NAME_HEX[lower]
+        if lower.startswith("#"):
+            if len(lower) == 4:
+                r, g, b = lower[1], lower[2], lower[3]
+                return f"#{r}{r}{g}{g}{b}{b}".upper()
+            if len(lower) == 7:
+                return lower.upper()
+        if lower.startswith("rgb"):
+            parts = re.findall(r"\d+", lower)
+            if len(parts) >= 3:
+                r, g, b = (max(0, min(255, int(part))) for part in parts[:3])
+                return f"#{r:02X}{g:02X}{b:02X}"
+        return None
+
+    def _status_text_colour(self, background_hex: str) -> str:
+        hex_code = background_hex.lstrip("#")
+        try:
+            r, g, b = (
+                int(hex_code[i : i + 2], 16)
+                for i in (0, 2, 4)
+            )
+        except (ValueError, TypeError):
+            return "#FFFFFF"
+        brightness = (0.299 * r) + (0.587 * g) + (0.114 * b)
+        return DEFAULT_TEXT_COLOR if brightness >= 170 else "#FFFFFF"
+
+    def _append_style(self, element: Tag, styles: str) -> None:
+        existing = element.get("style", "")
+        existing = existing.strip()
+        addition = styles.strip().rstrip(";")
+        if not addition:
+            return
+        if existing:
+            if not existing.endswith(";"):
+                existing = existing + ";"
+            element["style"] = f"{existing} {addition};"
+        else:
+            element["style"] = f"{addition};"
 
 
 class _HTMLStructureValidator(HTMLParser):
