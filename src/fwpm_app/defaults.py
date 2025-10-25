@@ -32,6 +32,9 @@ DEFAULT_SETTINGS = {
     "HTTP_VERIFY_SSL": "true",
     "HTTP_REQUEST_TIMEOUT": "30",
     "CONFLUENCE_VALIDATE_HTML": "true",
+    "EMAIL_ENABLED": "false",
+    "EMAIL_SMTP_HOST": "",
+    "EMAIL_FROM": "noreply@example.com",
 }
 
 # Jira account identifiers whose comments should be ignored when preparing issue text.

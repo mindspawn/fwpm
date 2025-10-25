@@ -104,3 +104,10 @@ class ConfluenceClient:
                 logger.error("Confluence error payload (raw): %s", response.text)
             response.raise_for_status()
         return response.json()
+
+    def get_page_view_html(self, page_id: str) -> Dict:
+        url = f"{self.base_url}/rest/api/content/{page_id}"
+        params = {"expand": "body.view"}
+        logger.info("Confluence GET %s params=%s", url, params)
+        response = self.session.get(url, params=params, timeout=self.timeout)
+        return self._handle_response(response, url)

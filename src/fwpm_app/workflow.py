@@ -5,10 +5,13 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Tuple, Optional
+import smtplib
+from email.message import EmailMessage
 import re
 import unicodedata
 from html.parser import HTMLParser
 from urllib.parse import quote_plus
+import html
 
 from zoneinfo import ZoneInfo
 
@@ -92,7 +95,8 @@ class Workflow:
         self._persist_confluence_body(body)
         if self.validate_html:
             self._validate_html(body)
-        self._publish_confluence_page(filter_cfg, body)
+        result = self._publish_confluence_page(filter_cfg, body)
+        self._send_email_if_enabled(filter_cfg, result, body)
         logger.info(
             "Workflow completed for filter %s in %.2f seconds",
             filter_id,
@@ -122,7 +126,8 @@ class Workflow:
         self._persist_confluence_body(body)
         if self.validate_html:
             self._validate_html(body)
-        self._publish_confluence_page(filter_cfg, body)
+        result = self._publish_confluence_page(filter_cfg, body)
+        self._send_email_if_enabled(filter_cfg, result, body)
         logger.info(
             "Placeholder workflow completed for filter %s in %.2f seconds",
             filter_id,
@@ -133,7 +138,7 @@ class Workflow:
         self,
         filter_cfg: FilterConfig,
         body: str,
-    ) -> None:
+    ) -> dict:
         confluence_cfg = filter_cfg.confluence
         result = self.confluence_client.create_page(
             space_key=confluence_cfg.space_key,
@@ -146,6 +151,67 @@ class Workflow:
             result.get("id"),
             result.get("_links", {}).get("base"),
         )
+        return result
+
+    def _send_email_if_enabled(self, filter_cfg: FilterConfig, page_result: dict, storage_body: str) -> None:
+        if not self.app_config.email_enabled:
+            return
+        recipients = [r.strip() for r in filter_cfg.email_recipients if r.strip()]
+        if not recipients:
+            logger.debug("Email sending enabled but no recipients provided; skipping.")
+            return
+        smtp_host = self.app_config.email_smtp_host
+        if not smtp_host:
+            logger.warning("Email sending enabled but EMAIL_SMTP_HOST not configured; skipping.")
+            return
+
+        page_id = page_result.get("id")
+        if not page_id:
+            logger.warning("Cannot send email: Confluence page id missing in response.")
+            return
+
+        try:
+            page_view = self.confluence_client.get_page_view_html(page_id)
+            rendered_html = (
+                (((page_view.get("body") or {}).get("view") or {}).get("value"))
+                or storage_body
+            )
+        except Exception as exc:  # pragma: no cover - network failures
+            logger.warning("Failed to fetch rendered Confluence HTML: %s", exc)
+            rendered_html = storage_body
+
+        links = page_result.get("_links", {}) or {}
+        base_link = links.get("base")
+        webui = links.get("webui")
+        if base_link and webui:
+            page_url = f"{base_link}{webui}"
+        else:
+            base = self.app_config.confluence_base_url.rstrip("/")
+            page_url = f"{base}{webui or ''}"
+
+        html_message = (
+            f"<p>The page has been published to Confluence. Version history can be viewed "
+            f"<a href=\"{html.escape(page_url)}\">here</a>.</p>"
+            f"{rendered_html}"
+        )
+        text_message = (
+            "The page has been published to Confluence. Version history can be viewed here: "
+            f"{page_url}"
+        )
+
+        email_msg = EmailMessage()
+        email_msg["Subject"] = filter_cfg.confluence.page_name
+        email_msg["From"] = self.app_config.email_from
+        email_msg["To"] = ", ".join(recipients)
+        email_msg.set_content(text_message)
+        email_msg.add_alternative(html_message, subtype="html")
+
+        try:
+            with smtplib.SMTP(self.app_config.email_smtp_host, 25, timeout=30) as smtp:
+                smtp.send_message(email_msg)
+            logger.info("Email sent to %s", recipients)
+        except Exception as exc:  # pragma: no cover - network failures
+            logger.warning("Failed to send email notification: %s", exc)
 
     def _run_llm_round(
         self, issues: List[dict], filter_cfg: FilterConfig
@@ -263,6 +329,11 @@ class Workflow:
             f"from the last {self.app_config.comment_lookback_hours} hours."
         )
 
+        query_line = (
+            f"{self.app_config.llm_user_prompt.strip()} Focus only on the recent comment activity "
+            f"from the last {self.app_config.comment_lookback_hours} hours."
+        )
+
         parts = [
             "Use the following context as your learned knowledge, inside <context></context> XML tags.",
             "<context>",
@@ -277,7 +348,7 @@ class Workflow:
             "Base your answer solely on the given context. Do not infer, assume, or fabricate information.",
             "Given the context information, answer the query.",
             "Query:",
-            "Create an executive summary of all the above JIRA comments. Bullets are preferred for the summary."
+            query_line,
         ]
         return "\n\n".join(part for part in parts if part)
 
@@ -350,7 +421,7 @@ class Workflow:
     ) -> str:
         fields = issue.get("fields") or {}
         summary = fields.get("summary") or ""
-        lines: List[str] = [] # [f"Issue: {issue.get('key')} – {summary}"]
+        lines: List[str] = [f"Issue: {issue.get('key')} – {summary}"]
 
         if self.app_config.include_description_background:
             description = fields.get("description")

@@ -32,6 +32,7 @@ class LLMConfig:
 class FilterConfig:
     confluence: ConfluenceConfig
     llm: LLMConfig
+    email_recipients: list[str]
 
 
 @dataclasses.dataclass
@@ -56,6 +57,9 @@ class AppConfig:
     comment_lookback_hours: int
     include_description_background: bool
     confluence_validate_html: bool
+    email_enabled: bool
+    email_smtp_host: str
+    email_from: str
     verify_ssl: bool = True
     request_timeout: int = 30
 
@@ -104,6 +108,10 @@ class AppConfig:
 
         include_description_bg = _as_bool(optional("INCLUDE_DESCRIPTION_IN_BACKGROUND", "true"))
 
+        email_enabled = _as_bool(optional("EMAIL_ENABLED", "false"))
+        email_smtp_host = optional("EMAIL_SMTP_HOST", "") or ""
+        email_from = optional("EMAIL_FROM", "noreply@example.com") or "noreply@example.com"
+
         return cls(
             jira_base_url=require("JIRA_BASE_URL"),
             jira_username=require("JIRA_USERNAME"),
@@ -125,6 +133,9 @@ class AppConfig:
             comment_lookback_hours=lookback_hours,
             include_description_background=include_description_bg,
             confluence_validate_html=_as_bool(optional("CONFLUENCE_VALIDATE_HTML", "true")),
+            email_enabled=email_enabled,
+            email_smtp_host=email_smtp_host,
+            email_from=email_from,
             verify_ssl=verify_ssl,
             request_timeout=timeout,
         )
@@ -143,12 +154,20 @@ def parse_filter_description(description: Optional[str], defaults: AppConfig) ->
         raise RuntimeError("Filter description YAML must be a mapping.")
 
     confluence_section = _ensure_section(data, "confluence")
-    llm_section_raw = data.get("llm", {})
-    if llm_section_raw is None:
-        llm_section_raw = {}
+    llm_section_raw = data.get("llm", {}) or {}
     if not isinstance(llm_section_raw, dict):
         raise RuntimeError("Filter description 'llm' section must be a mapping if provided.")
     llm_section = llm_section_raw
+
+    email_section_raw = data.get("email", {}) or {}
+    if not isinstance(email_section_raw, dict):
+        raise RuntimeError("Filter description 'email' section must be a mapping if provided.")
+    recipients = email_section_raw.get("recipients", [])
+    if recipients is None:
+        recipients = []
+    if not isinstance(recipients, list):
+        raise RuntimeError("email.recipients must be a list if provided.")
+    normalized_recipients = [str(r).strip() for r in recipients if str(r).strip()]
 
     confluence = ConfluenceConfig(
         space_key=_require_str(confluence_section, "space_key"),
@@ -179,7 +198,7 @@ def parse_filter_description(description: Optional[str], defaults: AppConfig) ->
         ),
     )
 
-    return FilterConfig(confluence=confluence, llm=llm)
+    return FilterConfig(confluence=confluence, llm=llm, email_recipients=normalized_recipients)
 
 
 def _ensure_section(data: Dict[str, Any], key: str) -> Dict[str, Any]:
