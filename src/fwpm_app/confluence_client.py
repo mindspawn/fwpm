@@ -105,9 +105,9 @@ class ConfluenceClient:
             response.raise_for_status()
         return response.json()
 
-    def get_page_view_html(self, page_id: str) -> Dict:
+    def get_page_export_view(self, page_id: str) -> Dict:
         url = f"{self.base_url}/rest/api/content/{page_id}"
-        params = {"expand": "body.view"}
+        params = {"expand": "body.export_view"}
         logger.info("Confluence GET %s params=%s", url, params)
         response = self.session.get(url, params=params, timeout=self.timeout)
         return self._handle_response(response, url)

@@ -30,6 +30,21 @@ from .jira_client import JiraClient
 from .llm_client import LLMClient
 from .renderers import build_confluence_storage
 
+EMAIL_INLINE_CSS = """
+<style>
+body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #172B4D; }
+table { border-collapse: collapse; }
+.toc-indentation { margin-left: 16px; }
+.aui-lozenge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; color: #fff; }
+.aui-lozenge-success { background-color: #57d9a3; }
+.aui-lozenge-complete { background-color: #4c9aff; }
+.aui-lozenge-current { background-color: #ffab00; }
+.aui-lozenge-moved { background-color: #6554C0; }
+.aui-lozenge-error, .aui-lozenge-removed { background-color: #ff5630; }
+.toc-macro { margin-bottom: 16px; }
+</style>
+"""
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,9 +186,9 @@ class Workflow:
             return
 
         try:
-            page_view = self.confluence_client.get_page_view_html(page_id)
+            page_view = self.confluence_client.get_page_export_view(page_id)
             rendered_html = (
-                (((page_view.get("body") or {}).get("view") or {}).get("value"))
+                (((page_view.get("body") or {}).get("export_view") or {}).get("value"))
                 or storage_body
             )
         except Exception as exc:  # pragma: no cover - network failures
@@ -189,10 +204,19 @@ class Workflow:
             base = self.app_config.confluence_base_url.rstrip("/")
             page_url = f"{base}{webui or ''}"
 
+        base_href = None
+        if base_link:
+            base_href = base_link.rstrip("/") + "/"
+        base_tag = f"<base href=\"{html.escape(base_href)}\" />" if base_href else ""
+
         html_message = (
+            "<html><head>"
+            f"{base_tag}{EMAIL_INLINE_CSS}"
+            "</head><body>"
             f"<p>The page has been published to Confluence. Version history can be viewed "
             f"<a href=\"{html.escape(page_url)}\">here</a>.</p>"
             f"{rendered_html}"
+            "</body></html>"
         )
         text_message = (
             "The page has been published to Confluence. Version history can be viewed here: "
