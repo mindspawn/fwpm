@@ -1108,8 +1108,8 @@ class Workflow:
         inner = soup.new_tag("div")
         self._append_style(
             inner,
-            "margin:0; padding:12px 16px; border:0; width:100%; "
-            f"background-color:{background}; color:{DEFAULT_TEXT_COLOR};",
+            "margin:0; padding:14px 18px; border:0; width:100%; "
+            f"background-color:{background}; color:{DEFAULT_TEXT_COLOR}; line-height:1.3;",
         )
 
         if include_heading and title_text:
@@ -1125,7 +1125,7 @@ class Workflow:
         self._append_style(
             content,
             f"margin:0; padding:0; border:0; width:100%; background-color:{background}; "
-            f"color:{DEFAULT_TEXT_COLOR};",
+            f"color:{DEFAULT_TEXT_COLOR}; line-height:1.3;",
         )
 
         if body_node is not None:
@@ -1173,7 +1173,8 @@ class Workflow:
         if name in {"p", "div", "ul", "ol", "li", "table", "tbody", "tr", "td", "th", "pre"}:
             self._append_style(
                 element,
-                f"margin:0; background-color:{background_color}; color:{DEFAULT_TEXT_COLOR};",
+                f"margin:0; background-color:{background_color}; color:{DEFAULT_TEXT_COLOR}; "
+                "line-height:1.3;",
             )
             if name in {"ul", "ol"}:
                 self._append_style(element, "padding-left:20px;")
