@@ -90,11 +90,7 @@ SUBTLE_BACKGROUND_HEX = "#DFE1E6"
 SUBTLE_BORDER_HEX = "#A5ADBA"
 DEFAULT_TEXT_COLOR = "#172B4D"
 INFO_PANEL_BACKGROUND = "#E9F2FF"
-INFO_PANEL_STYLE = (
-    "margin:16px 0; border:1px solid #0052CC; border-radius:3px; "
-    f"background-color:{INFO_PANEL_BACKGROUND}; padding:0; color:{DEFAULT_TEXT_COLOR}; "
-    "box-sizing:border-box; overflow:hidden;"
-)
+PANEL_DEFAULT_BORDER = "#0052CC"
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +172,7 @@ class Workflow:
             issues = issues[:limit]
         description = filter_details.get("description", "")
         filter_cfg = parse_filter_description(description, self.app_config)
-        placeholder_outputs = []
+        placeholder_outputs: List[Tuple[dict, str, bool]] = []
         for issue in issues:
             hydrated_issue = self._hydrate_issue(issue["key"])
             recent_comments = self._collect_recent_comments(hydrated_issue)
@@ -825,6 +821,8 @@ class Workflow:
 
         self._style_status_macros(soup)
         self._style_info_macros(soup)
+        self._style_panel_macros(soup)
+        self._strip_table_of_contents(soup)
         return str(soup)
 
     def _materialize_structured_macros(self, soup: BeautifulSoup) -> BeautifulSoup:
@@ -835,6 +833,9 @@ class Workflow:
                 macro.replace_with(replacement)
             elif macro_name == "info":
                 replacement = self._build_info_panel_from_macro(soup, macro)
+                macro.replace_with(replacement)
+            elif macro_name == "panel":
+                replacement = self._build_panel_from_macro(soup, macro)
                 macro.replace_with(replacement)
             else:
                 macro.decompose()
@@ -863,11 +864,39 @@ class Workflow:
         title_text = title_param.strip() or icon
         include_heading = bool(title_param.strip() and title_param.strip().lower() != "info")
         body = macro.find("ac:rich-text-body")
-        return self._build_info_panel_element(
+        return self._build_panel_element(
             soup=soup,
             title_text=title_text,
             body_node=body,
+            original_panel=None,
             include_heading=include_heading,
+            border_color=PANEL_DEFAULT_BORDER,
+            background_color=INFO_PANEL_BACKGROUND,
+        )
+
+    def _build_panel_from_macro(self, soup: BeautifulSoup, macro: Tag) -> Tag:
+        params = {
+            param.get("ac:name", "").lower(): (param.string or "").strip()
+            for param in macro.find_all("ac:parameter")
+        }
+        title_text = (params.get("title") or "").strip()
+        include_heading = bool(title_text)
+        border_color = params.get("bordercolor") or params.get("bordercolour") or PANEL_DEFAULT_BORDER
+        background_color = (
+            params.get("bgcolor")
+            or params.get("background")
+            or params.get("backgroundcolor")
+            or INFO_PANEL_BACKGROUND
+        )
+        body = macro.find("ac:rich-text-body")
+        return self._build_panel_element(
+            soup=soup,
+            title_text=title_text,
+            body_node=body,
+            original_panel=None,
+            include_heading=include_heading,
+            border_color=border_color,
+            background_color=background_color,
         )
 
     def _style_status_macros(self, soup: BeautifulSoup) -> None:
@@ -884,6 +913,26 @@ class Workflow:
             if replacement is not None:
                 panel.replace_with(replacement)
 
+    def _style_panel_macros(self, soup: BeautifulSoup) -> None:
+        for panel in soup.select("div.panel"):
+            classes = panel.get("class", [])
+            if classes and any(cls.startswith("confluence-information-macro") for cls in classes):
+                continue
+            replacement = self._build_panel_from_export(soup, panel)
+            if replacement is not None:
+                panel.replace_with(replacement)
+
+    def _strip_table_of_contents(self, soup: BeautifulSoup) -> None:
+        selectors = [
+            ".toc-macro",
+            ".tocMacro",
+            ".toc-macro-section",
+            ".toc-macro-list",
+            ".toc-macro-heading",
+        ]
+        for selector in selectors:
+            for node in list(soup.select(selector)):
+                node.decompose()
     def _apply_status_styles(self, element: Tag, colour: str | None, subtle: bool) -> None:
         colour_hex = self._normalise_colour(colour) or DEFAULT_STATUS_HEX
         if subtle:
@@ -996,38 +1045,78 @@ class Workflow:
         if not title_text:
             title_text = "Info"
 
-        replacement = self._build_info_panel_element(
+        replacement = self._build_panel_element(
             soup=soup,
             title_text=title_text,
             body_node=body,
             original_panel=panel,
             include_heading=include_heading,
+            border_color=PANEL_DEFAULT_BORDER,
+            background_color=INFO_PANEL_BACKGROUND,
         )
         return replacement
 
-    def _build_info_panel_element(
+    def _build_panel_from_export(self, soup: BeautifulSoup, panel: Tag) -> Tag | None:
+        content = panel.select_one(".panelContent") or panel.select_one(".panel-body")
+        header = panel.select_one(".panelHeader") or panel.select_one(".panel-heading")
+        title_text = ""
+        include_heading = False
+        if header and header.get_text(strip=True):
+            title_text = header.get_text(strip=True)
+            include_heading = True
+
+        border_color = (
+            panel.get("data-bordercolor")
+            or panel.get("data-borderColor")
+            or self._extract_style_color(panel, "border-color")
+            or PANEL_DEFAULT_BORDER
+        )
+        background_color = (
+            panel.get("data-bgcolor")
+            or (content.get("data-bgcolor") if content else None)
+            or self._extract_style_color(panel, "background-color")
+            or self._extract_style_color(content, "background-color")
+            or INFO_PANEL_BACKGROUND
+        )
+
+        return self._build_panel_element(
+            soup=soup,
+            title_text=title_text,
+            body_node=content,
+            original_panel=panel if content is None else None,
+            include_heading=include_heading,
+            border_color=border_color,
+            background_color=background_color,
+        )
+
+    def _build_panel_element(
         self,
         soup: BeautifulSoup,
         title_text: str,
         body_node: Tag | None,
         original_panel: Tag | None = None,
         include_heading: bool = False,
+        border_color: str | None = None,
+        background_color: str | None = None,
     ) -> Tag:
+        border = self._normalise_colour(border_color) or PANEL_DEFAULT_BORDER
+        background = self._normalise_colour(background_color) or INFO_PANEL_BACKGROUND
+
         panel = soup.new_tag("div")
-        self._set_style(panel, INFO_PANEL_STYLE)
+        self._set_style(panel, self._panel_container_style(border, background))
 
         inner = soup.new_tag("div")
         self._append_style(
             inner,
             "margin:0; padding:12px 16px; border:0; width:100%; "
-            f"background-color:{INFO_PANEL_BACKGROUND}; color:{DEFAULT_TEXT_COLOR};",
+            f"background-color:{background}; color:{DEFAULT_TEXT_COLOR};",
         )
 
-        if include_heading:
+        if include_heading and title_text:
             heading = soup.new_tag("div")
             self._append_style(
                 heading,
-                f"font-weight:600; margin:0 0 8px 0; background-color:{INFO_PANEL_BACKGROUND};",
+                f"font-weight:600; margin:0 0 8px 0; background-color:{background};",
             )
             heading.string = title_text
             inner.append(heading)
@@ -1035,7 +1124,7 @@ class Workflow:
         content = soup.new_tag("div")
         self._append_style(
             content,
-            f"margin:0; padding:0; border:0; width:100%; background-color:{INFO_PANEL_BACKGROUND}; "
+            f"margin:0; padding:0; border:0; width:100%; background-color:{background}; "
             f"color:{DEFAULT_TEXT_COLOR};",
         )
 
@@ -1043,7 +1132,7 @@ class Workflow:
             for child in list(body_node.contents):
                 extracted = child.extract()
                 if isinstance(extracted, Tag):
-                    self._normalise_info_child(extracted)
+                    self._normalize_panel_child(extracted, background)
                 content.append(extracted)
         elif original_panel is not None:
             for child in list(original_panel.contents):
@@ -1062,7 +1151,7 @@ class Workflow:
                     continue
                 extracted = child.extract()
                 if isinstance(extracted, Tag):
-                    self._normalise_info_child(extracted)
+                    self._normalize_panel_child(extracted, background)
                 content.append(extracted)
 
         if not content.contents:
@@ -1072,18 +1161,40 @@ class Workflow:
         panel.append(inner)
         return panel
 
-    def _normalise_info_child(self, element: Tag) -> None:
+    def _panel_container_style(self, border_color: str, background_color: str) -> str:
+        return (
+            f"margin:16px 0; border:1px solid {border_color}; border-radius:3px; "
+            f"background-color:{background_color}; padding:0; color:{DEFAULT_TEXT_COLOR}; "
+            "box-sizing:border-box; overflow:hidden;"
+        )
+
+    def _normalize_panel_child(self, element: Tag, background_color: str) -> None:
         name = (element.name or "").lower() if element.name else ""
         if name in {"p", "div", "ul", "ol", "li", "table", "tbody", "tr", "td", "th", "pre"}:
             self._append_style(
                 element,
-                f"margin:0; background-color:{INFO_PANEL_BACKGROUND}; color:{DEFAULT_TEXT_COLOR};",
+                f"margin:0; background-color:{background_color}; color:{DEFAULT_TEXT_COLOR};",
             )
             if name in {"ul", "ol"}:
                 self._append_style(element, "padding-left:20px;")
         for child in element.children:
             if isinstance(child, Tag):
-                self._normalise_info_child(child)
+                self._normalize_panel_child(child, background_color)
+
+    def _extract_style_color(self, element: Tag | None, property_name: str) -> str | None:
+        if element is None:
+            return None
+        style_attr = element.get("style", "")
+        if not style_attr:
+            return None
+        match = re.search(
+            rf"{property_name}\s*:\s*([^;]+)",
+            style_attr,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return match.group(1).strip()
+        return None
 
 
 class _HTMLStructureValidator(HTMLParser):
