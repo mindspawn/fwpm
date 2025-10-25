@@ -1163,7 +1163,7 @@ class Workflow:
 
     def _panel_container_style(self, border_color: str, background_color: str) -> str:
         return (
-            f"margin:16px 0; border:1px solid {border_color}; border-radius:3px; "
+            f"margin:16px 0; border:1.5px solid {border_color}; border-radius:3px; "
             f"background-color:{background_color}; padding:0; color:{DEFAULT_TEXT_COLOR}; "
             "box-sizing:border-box; overflow:hidden;"
         )
