@@ -250,10 +250,10 @@ class Workflow:
         timestamp = now_pacific.strftime("%Y-%m-%d %H:%M %Z")
 
         context_sections = [
-            "Background:",
+            # "Background:",
             background_text.strip(),
             "",
-            f"Recent comment activity (last {self.app_config.comment_lookback_hours} hours):",
+            f"Recent JIRA task comment activity (last {self.app_config.comment_lookback_hours} hours):",
             recent_comments_text.strip(),
         ]
         context = "\n".join(section for section in context_sections if section)
@@ -277,7 +277,7 @@ class Workflow:
             "Base your answer solely on the given context. Do not infer, assume, or fabricate information.",
             "Given the context information, answer the query.",
             "Query:",
-            "Summarize all the of above JIRA comments. Bullets are preferred for the summary."
+            "Create an executive summary of all the above JIRA comments. Bullets are preferred for the summary."
         ]
         return "\n\n".join(part for part in parts if part)
 
@@ -350,7 +350,7 @@ class Workflow:
     ) -> str:
         fields = issue.get("fields") or {}
         summary = fields.get("summary") or ""
-        lines: List[str] = [f"Issue: {issue.get('key')} – {summary}"]
+        lines: List[str] = [] # [f"Issue: {issue.get('key')} – {summary}"]
 
         if self.app_config.include_description_background:
             description = fields.get("description")
