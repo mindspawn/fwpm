@@ -31,6 +31,7 @@ def build_confluence_storage(
             str,
             str,
             str,
+            bool,
         ]
     ],
 ) -> str:
@@ -44,7 +45,7 @@ def build_confluence_storage(
         total_issues: Count of issues returned by the filter.
         issue_blocks: Iterable of tuples `(issue_key, issue_summary, assignee_name, assignee_url,
         reporter_name, priority_name, labels, components, status, is_impediment,
-        product, customer, generated_text)`.
+        product, customer, generated_text, should_panel)`.
     """
     timestamp = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M %Z")
     filter_url = f"{jira_base_url.rstrip('/')}/issues/?filter={quote_plus(filter_id)}"
@@ -87,6 +88,7 @@ def build_confluence_storage(
         product,
         customer,
         llm_text,
+        should_panel,
     ) in issue_blocks:
         url = f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
         safe_key = html.escape(issue_key)
@@ -128,6 +130,8 @@ def build_confluence_storage(
             "</p>"
         )
         safe_body = _render_markdown(llm_text)
+        if should_panel:
+            safe_body = _wrap_panel(safe_body)
         section = "".join([issue_heading, assignee_line, product_customer_line, safe_body])
         sections.append(section)
 
@@ -182,3 +186,18 @@ def _format_labels(labels: Tuple[str, ...]) -> str:
         else:
             formatted.append(html.escape(label))
     return ", ".join(formatted)
+
+
+def _wrap_panel(body_html: str) -> str:
+    if not body_html:
+        body_html = "<p></p>"
+    return (
+        '<ac:structured-macro ac:name="panel">'
+        '<ac:parameter ac:name="borderColor">#0052CC</ac:parameter>'
+        '<ac:parameter ac:name="borderStyle">solid</ac:parameter>'
+        '<ac:parameter ac:name="bgColor">#E9F2FF</ac:parameter>'
+        "<ac:rich-text-body>"
+        f"{body_html}"
+        "</ac:rich-text-body>"
+        "</ac:structured-macro>"
+    )

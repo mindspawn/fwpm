@@ -181,13 +181,25 @@ class Workflow:
             hydrated_issue = self._hydrate_issue(issue["key"])
             recent_comments = self._collect_recent_comments(hydrated_issue)
             if not recent_comments:
-                placeholder_outputs.append((hydrated_issue, self._no_recent_activity_message()))
+                placeholder_outputs.append(
+                    (
+                        hydrated_issue,
+                        self._no_recent_activity_message(),
+                        False,
+                    )
+                )
                 continue
             background_text = self._build_background_text(hydrated_issue)
             recent_text = self._format_comment_entries(recent_comments)
             user_prompt = self._build_user_prompt(background_text, recent_text)
             self._persist_prompt(hydrated_issue.get("key"), user_prompt)
-            placeholder_outputs.append((hydrated_issue, "This is where the LLM response is"))
+            placeholder_outputs.append(
+                (
+                    hydrated_issue,
+                    "This is where the LLM response is",
+                    True,
+                )
+            )
         body = self._build_confluence_body(filter_id, filter_details, placeholder_outputs, filter_cfg)
         self._persist_confluence_body(body)
         if self.validate_html:
@@ -292,8 +304,8 @@ class Workflow:
 
     def _run_llm_round(
         self, issues: List[dict], filter_cfg: FilterConfig
-    ) -> List[Tuple[dict, str]]:
-        outputs: List[Tuple[dict, str]] = []
+    ) -> List[Tuple[dict, str, bool]]:
+        outputs: List[Tuple[dict, str, bool]] = []
         start = time.time()
         overall_start = start
         total = len(issues)
@@ -304,7 +316,7 @@ class Workflow:
 
             if not recent_comments:
                 message = self._no_recent_activity_message()
-                outputs.append((hydrated_issue, message))
+                outputs.append((hydrated_issue, message, False))
                 logger.info(
                     "Skipping LLM for %s; no comment activity in the last %s hours",
                     hydrated_issue.get("key"),
@@ -341,7 +353,7 @@ class Workflow:
                 prompt_elapsed,
             )
             self._persist_llm_response(hydrated_issue.get("key"), response_text)
-            outputs.append((hydrated_issue, response_text))
+            outputs.append((hydrated_issue, response_text, True))
             if LLM_REQUEST_DELAY_SECONDS:
                 time.sleep(LLM_REQUEST_DELAY_SECONDS)
 
@@ -357,7 +369,7 @@ class Workflow:
         self,
         filter_id: str,
         filter_details: dict,
-        llm_outputs: List[Tuple[dict, str]],
+        llm_outputs: List[Tuple[dict, str, bool]],
         filter_cfg: FilterConfig,
     ) -> str:
         total_issues = len(llm_outputs)
@@ -376,8 +388,9 @@ class Workflow:
                 self._product_names(issue),
                 self._customer_names(issue),
                 response_text,
+                should_panel,
             )
-            for issue, response_text in llm_outputs
+            for issue, response_text, should_panel in llm_outputs
         )
 
         return build_confluence_storage(
