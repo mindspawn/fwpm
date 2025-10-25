@@ -61,20 +61,17 @@ def build_confluence_storage(
         "<ac:rich-text-body/>"
         "</ac:structured-macro>"
     )
-    info_panel = _build_info_panel(INFO_HEADER)
-    info_section = "".join(
-        [
-            "<h3>Info</h3>",
-            info_panel,
-            f"<p><strong>Generated:</strong> {html.escape(timestamp)}</p>",
-            (
-                f"<p><strong>Filter:</strong> <a href=\"{filter_url}\">{safe_filter_id}</a>"
-                f"{filter_name_fragment}</p>"
-            ),
-            f"<p><strong>Total issues:</strong> {total_issues}</p>",
-            "<p>Review all generated notes for accuracy before wider sharing.</p>",
-        ]
+    header_html = f"<p>{html.escape(INFO_HEADER)}</p>"
+    fields_row = (
+        "<p>"
+        f"<strong>Generated on:</strong> {html.escape(timestamp)} | "
+        f"<strong>Filter:</strong> <a href=\"{filter_url}\">{safe_filter_id}</a>{filter_name_fragment} | "
+        f"<strong>Total issues:</strong> {total_issues}"
+        "</p>"
     )
+    guidance_html = "<p>Review all generated notes for accuracy before wider sharing.</p>"
+    panel_body = "".join([header_html, fields_row, guidance_html])
+    info_section = _build_info_panel(panel_body)
 
     sections = []
     for (
