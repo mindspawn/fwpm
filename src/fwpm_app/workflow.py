@@ -35,12 +35,27 @@ EMAIL_INLINE_CSS = """
 body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #172B4D; }
 table { border-collapse: collapse; }
 .toc-indentation { margin-left: 16px; }
-.aui-lozenge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; color: #fff; }
-.aui-lozenge-success { background-color: #57d9a3; }
-.aui-lozenge-complete { background-color: #4c9aff; }
-.aui-lozenge-current { background-color: #ffab00; }
-.aui-lozenge-moved { background-color: #6554C0; }
-.aui-lozenge-error, .aui-lozenge-removed { background-color: #ff5630; }
+.status-macro, .aui-lozenge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-transform: none;
+  margin-right: 4px;
+}
+.aui-lozenge-subtle {
+  border: 1px solid transparent;
+  background-color: rgba(9, 30, 66, 0.25);
+  color: #172B4D;
+}
+.aui-lozenge-success { background-color: #57d9a3 !important; }
+.aui-lozenge-complete { background-color: #4c9aff !important; }
+.aui-lozenge-current { background-color: #ffab00 !important; }
+.aui-lozenge-moved { background-color: #6554C0 !important; }
+.aui-lozenge-error, .aui-lozenge-removed { background-color: #ff5630 !important; }
+.aui-lozenge { background-color: #7A869A; }
 .toc-macro { margin-bottom: 16px; }
 </style>
 """
