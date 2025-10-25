@@ -845,11 +845,15 @@ class Workflow:
             for param in macro.find_all("ac:parameter")
         }
         icon = params.get("icon", "information").capitalize()
+        title_param = params.get("title", "") or ""
+        title_text = title_param.strip() or icon
+        include_heading = bool(title_param.strip() and title_param.strip().lower() != "info")
         body = macro.find("ac:rich-text-body")
         return self._build_info_panel_element(
             soup=soup,
-            title_text=icon,
+            title_text=title_text,
             body_node=body,
+            include_heading=include_heading,
         )
 
     def _style_status_macros(self, soup: BeautifulSoup) -> None:
@@ -963,14 +967,18 @@ class Workflow:
         title_elem = panel.select_one(".confluence-information-macro-title") or panel.select_one(".title-text")
         data_title = panel.get("data-macro-title") or panel.get("data-title")
         title_text = ""
+        include_heading = False
         if title_elem and title_elem.get_text(strip=True):
             title_text = title_elem.get_text(strip=True)
+            include_heading = title_text.strip().lower() != "info"
         elif isinstance(data_title, str) and data_title.strip():
             title_text = data_title.strip()
+            include_heading = title_text.strip().lower() != "info"
         else:
             data_name = panel.get("data-macro-name")
             if isinstance(data_name, str) and data_name.strip():
                 title_text = data_name.strip().capitalize()
+                include_heading = title_text.strip().lower() != "info"
         if not title_text:
             title_text = "Info"
 
@@ -979,6 +987,7 @@ class Workflow:
             title_text=title_text,
             body_node=body,
             original_panel=panel,
+            include_heading=include_heading,
         )
         return replacement
 
@@ -988,19 +997,21 @@ class Workflow:
         title_text: str,
         body_node: Tag | None,
         original_panel: Tag | None = None,
+        include_heading: bool = False,
     ) -> Tag:
         panel = soup.new_tag("div")
         self._set_style(panel, INFO_PANEL_STYLE)
 
-        heading = soup.new_tag("div")
-        self._append_style(heading, "font-weight:600; margin-bottom:8px;")
-        heading.string = title_text
-        panel.append(heading)
+        if include_heading:
+            heading = soup.new_tag("div")
+            self._append_style(heading, "font-weight:600; margin-bottom:8px;")
+            heading.string = title_text
+            panel.append(heading)
 
         content = soup.new_tag("div")
         self._append_style(
             content,
-            "margin:0; padding:0; border:0; background-color:#E9F2FF; color:"
+            "margin:0; padding:0; border:0; width:100%; color:"
             f"{DEFAULT_TEXT_COLOR};",
         )
 
