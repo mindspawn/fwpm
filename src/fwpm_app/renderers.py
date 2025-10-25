@@ -54,14 +54,15 @@ def build_confluence_storage(
     filter_name_fragment = f" ({safe_filter_name})" if safe_filter_name else ""
     toc_macro = (
         '<ac:structured-macro ac:name="toc">'
-        '<ac:parameter ac:name="maxLevel">1</ac:parameter>'
+        '<ac:parameter ac:name="minLevel">3</ac:parameter>'
+        '<ac:parameter ac:name="maxLevel">3</ac:parameter>'
         "<ac:rich-text-body/>"
         "</ac:structured-macro>"
     )
     info_panel = _build_info_panel(INFO_HEADER)
     info_section = "".join(
         [
-            "<h1>Info</h1>",
+            "<h3>Info</h3>",
             info_panel,
             f"<p><strong>Generated:</strong> {html.escape(timestamp)}</p>",
             (
