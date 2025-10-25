@@ -952,15 +952,20 @@ class Workflow:
             "border-collapse:separate; border-spacing:0; display:inline-table; "
             "margin-right:4px; vertical-align:middle;"
         )
-        td_style = (
-            f"padding:2px 8px; mso-padding-alt:0px 8px 0px 8px; {border_style} {border_radius} "
-            f"background-color:{bg}; color:{text_colour}; font-size:12px; font-weight:600; "
-            "text-transform:none; line-height:1.3; mso-line-height-rule:exactly;"
-        )
-        td_attrs = f'bgcolor="{bg}" style="{td_style}"'
+        cellpadding = 'cellpadding="0"'  # Outlook ignores CSS padding but honors td padding.
+        cellspacing = 'cellspacing="0"'
         table_html = (
-            f'<table role="presentation" cellspacing="0" cellpadding="0" '
-            f'style="{table_style}"><tr><td {td_attrs}>{safe_text}</td></tr></table>'
+            f'<table role="presentation" {cellpadding} {cellspacing} '
+            f'style="{table_style}">'
+            "<tr>"
+            f'<td bgcolor="{bg}" style="{border_style} {border_radius} background-color:{bg}; '
+            f'color:{text_colour}; font-size:12px; font-weight:600; text-transform:none; '
+            'line-height:1.3; mso-line-height-rule:exactly;" '
+            f'valign="middle" align="center">'
+            f'<span style="display:inline-block; padding:2px 8px;">{safe_text}</span>'
+            "</td>"
+            "</tr>"
+            "</table>"
         )
         replacement = BeautifulSoup(table_html, "html.parser")
         table_tag = replacement.find("table")
