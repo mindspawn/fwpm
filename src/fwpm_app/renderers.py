@@ -108,8 +108,8 @@ def build_confluence_storage(
             else "None"
         )
         issue_heading = (
-            f"<h1><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}"
-            f" ({safe_status})</h1>"
+            f"<h3><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}"
+            f" ({safe_status})</h3>"
         )
         flag_html = _impediment_badge() if is_impediment else ""
         assignee_line = (
