@@ -24,7 +24,7 @@ from .defaults import (
     CONFLUENCE_OUTPUT_FILE,
     IGNORE_COMMENTS_FROM,
 )
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Tag, NavigableString
 from .issue_content import DefaultIssueContentProvider, IssueContentProvider
 from .jira_client import JiraClient
 from .llm_client import LLMClient
@@ -91,7 +91,8 @@ SUBTLE_BORDER_HEX = "#A5ADBA"
 DEFAULT_TEXT_COLOR = "#172B4D"
 INFO_PANEL_STYLE = (
     "margin:16px 0; border:1px solid #0052CC; border-radius:3px; "
-    "background-color:#E9F2FF; padding:12px 16px; color:" + DEFAULT_TEXT_COLOR + ";"
+    "background-color:#E9F2FF; padding:12px 16px; color:"
+    f"{DEFAULT_TEXT_COLOR}; box-sizing:border-box;"
 )
 
 logger = logging.getLogger(__name__)
@@ -845,19 +846,11 @@ class Workflow:
         }
         icon = params.get("icon", "information").capitalize()
         body = macro.find("ac:rich-text-body")
-        panel = soup.new_tag("div")
-        self._set_style(panel, INFO_PANEL_STYLE)
-        heading = soup.new_tag("div")
-        self._append_style(heading, "font-weight:600; margin-bottom:8px;")
-        heading.string = icon
-        panel.append(heading)
-        content = soup.new_tag("div")
-        self._append_style(content, "margin:0; padding:0; background-color:#E9F2FF;")
-        if body:
-            for child in list(body.contents):
-                content.append(child.extract())
-        panel.append(content)
-        return panel
+        return self._build_info_panel_element(
+            soup=soup,
+            title_text=icon,
+            body_node=body,
+        )
 
     def _style_status_macros(self, soup: BeautifulSoup) -> None:
         for status in soup.select(".status-macro"):
@@ -867,31 +860,11 @@ class Workflow:
             self._apply_status_styles(status, colour, subtle)
 
     def _style_info_macros(self, soup: BeautifulSoup) -> None:
-        def is_info_panel(tag: Tag) -> bool:
-            classes = tag.get("class", [])
-            return any(
-                cls.startswith("confluence-information-macro") or cls == "panel"
-                for cls in classes
-            )
-
-        for panel in soup.find_all(is_info_panel):
-            self._set_style(panel, INFO_PANEL_STYLE)
-            container = panel.select_one(".aui-message")
-            if container:
-                self._append_style(
-                    container,
-                    "margin:0; border:0; background-color:transparent; padding:0; border-collapse:collapse; width:100%;",
-                )
-            icon = panel.select_one(".confluence-information-macro-icon")
-            if icon:
-                self._append_style(icon, "display:none;")
-            body = panel.select_one(".confluence-information-macro-body")
-            if body:
-                self._append_style(
-                    body,
-                    "margin:0; padding:0; border:0; background-color:#E9F2FF; color:"
-                    f"{DEFAULT_TEXT_COLOR};",
-                )
+        panels = soup.select(".confluence-information-macro")
+        for panel in panels:
+            replacement = self._build_info_panel_from_export(soup, panel)
+            if replacement is not None:
+                panel.replace_with(replacement)
 
     def _apply_status_styles(self, element: Tag, colour: str | None, subtle: bool) -> None:
         colour_hex = self._normalise_colour(colour) or DEFAULT_STATUS_HEX
@@ -984,6 +957,78 @@ class Workflow:
     def _set_style(self, element: Tag, styles: str) -> None:
         clean = styles.strip().rstrip(";")
         element["style"] = f"{clean};" if clean else ""
+
+    def _build_info_panel_from_export(self, soup: BeautifulSoup, panel: Tag) -> Tag | None:
+        body = panel.select_one(".confluence-information-macro-body") or panel.select_one(".panelContent")
+        title_elem = panel.select_one(".confluence-information-macro-title") or panel.select_one(".title-text")
+        data_title = panel.get("data-macro-title") or panel.get("data-title")
+        title_text = ""
+        if title_elem and title_elem.get_text(strip=True):
+            title_text = title_elem.get_text(strip=True)
+        elif isinstance(data_title, str) and data_title.strip():
+            title_text = data_title.strip()
+        else:
+            data_name = panel.get("data-macro-name")
+            if isinstance(data_name, str) and data_name.strip():
+                title_text = data_name.strip().capitalize()
+        if not title_text:
+            title_text = "Info"
+
+        replacement = self._build_info_panel_element(
+            soup=soup,
+            title_text=title_text,
+            body_node=body,
+            original_panel=panel,
+        )
+        return replacement
+
+    def _build_info_panel_element(
+        self,
+        soup: BeautifulSoup,
+        title_text: str,
+        body_node: Tag | None,
+        original_panel: Tag | None = None,
+    ) -> Tag:
+        panel = soup.new_tag("div")
+        self._set_style(panel, INFO_PANEL_STYLE)
+
+        heading = soup.new_tag("div")
+        self._append_style(heading, "font-weight:600; margin-bottom:8px;")
+        heading.string = title_text
+        panel.append(heading)
+
+        content = soup.new_tag("div")
+        self._append_style(
+            content,
+            "margin:0; padding:0; border:0; background-color:#E9F2FF; color:"
+            f"{DEFAULT_TEXT_COLOR};",
+        )
+
+        if body_node is not None:
+            for child in list(body_node.contents):
+                content.append(child.extract())
+        elif original_panel is not None:
+            for child in list(original_panel.contents):
+                if isinstance(child, NavigableString):
+                    if not child.strip():
+                        continue
+                    content.append(soup.new_string(child))
+                    continue
+                if not isinstance(child, Tag):
+                    continue
+                class_list = child.get("class", [])
+                if class_list and any(
+                    cls.startswith("confluence-information-macro") or cls.startswith("aui-icon")
+                    for cls in class_list
+                ):
+                    continue
+                content.append(child.extract())
+
+        if not content.contents:
+            content.append(soup.new_string(""))
+
+        panel.append(content)
+        return panel
 
 
 class _HTMLStructureValidator(HTMLParser):
