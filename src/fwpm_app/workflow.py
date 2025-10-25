@@ -89,10 +89,11 @@ DEFAULT_STATUS_HEX = "#7A869A"
 SUBTLE_BACKGROUND_HEX = "#DFE1E6"
 SUBTLE_BORDER_HEX = "#A5ADBA"
 DEFAULT_TEXT_COLOR = "#172B4D"
+INFO_PANEL_BACKGROUND = "#E9F2FF"
 INFO_PANEL_STYLE = (
     "margin:16px 0; border:1px solid #0052CC; border-radius:3px; "
-    "background-color:#E9F2FF; padding:12px 16px; color:"
-    f"{DEFAULT_TEXT_COLOR}; box-sizing:border-box;"
+    f"background-color:{INFO_PANEL_BACKGROUND}; padding:0; color:{DEFAULT_TEXT_COLOR}; "
+    "box-sizing:border-box; overflow:hidden;"
 )
 
 logger = logging.getLogger(__name__)
@@ -1002,22 +1003,35 @@ class Workflow:
         panel = soup.new_tag("div")
         self._set_style(panel, INFO_PANEL_STYLE)
 
+        inner = soup.new_tag("div")
+        self._append_style(
+            inner,
+            "margin:0; padding:12px 16px; border:0; width:100%; "
+            f"background-color:{INFO_PANEL_BACKGROUND}; color:{DEFAULT_TEXT_COLOR};",
+        )
+
         if include_heading:
             heading = soup.new_tag("div")
-            self._append_style(heading, "font-weight:600; margin-bottom:8px;")
+            self._append_style(
+                heading,
+                f"font-weight:600; margin:0 0 8px 0; background-color:{INFO_PANEL_BACKGROUND};",
+            )
             heading.string = title_text
-            panel.append(heading)
+            inner.append(heading)
 
         content = soup.new_tag("div")
         self._append_style(
             content,
-            "margin:0; padding:0; border:0; width:100%; color:"
-            f"{DEFAULT_TEXT_COLOR};",
+            f"margin:0; padding:0; border:0; width:100%; background-color:{INFO_PANEL_BACKGROUND}; "
+            f"color:{DEFAULT_TEXT_COLOR};",
         )
 
         if body_node is not None:
             for child in list(body_node.contents):
-                content.append(child.extract())
+                extracted = child.extract()
+                if isinstance(extracted, Tag):
+                    self._normalise_info_child(extracted)
+                content.append(extracted)
         elif original_panel is not None:
             for child in list(original_panel.contents):
                 if isinstance(child, NavigableString):
@@ -1033,13 +1047,30 @@ class Workflow:
                     for cls in class_list
                 ):
                     continue
-                content.append(child.extract())
+                extracted = child.extract()
+                if isinstance(extracted, Tag):
+                    self._normalise_info_child(extracted)
+                content.append(extracted)
 
         if not content.contents:
             content.append(soup.new_string(""))
 
-        panel.append(content)
+        inner.append(content)
+        panel.append(inner)
         return panel
+
+    def _normalise_info_child(self, element: Tag) -> None:
+        name = (element.name or "").lower() if element.name else ""
+        if name in {"p", "div", "ul", "ol", "li", "table", "tbody", "tr", "td", "th", "pre"}:
+            self._append_style(
+                element,
+                f"margin:0; background-color:{INFO_PANEL_BACKGROUND}; color:{DEFAULT_TEXT_COLOR};",
+            )
+            if name in {"ul", "ol"}:
+                self._append_style(element, "padding-left:20px;")
+        for child in element.children:
+            if isinstance(child, Tag):
+                self._normalise_info_child(child)
 
 
 class _HTMLStructureValidator(HTMLParser):
