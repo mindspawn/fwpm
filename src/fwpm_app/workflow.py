@@ -900,7 +900,7 @@ class Workflow:
         )
 
     def _style_status_macros(self, soup: BeautifulSoup) -> None:
-        for status in soup.select(".status-macro"):
+        for status in soup.select(".status-macro, .aui-lozenge"):
             classes = status.get("class", [])
             subtle = "aui-lozenge-subtle" in classes if classes else False
             colour = self._pick_colour_from_element(status)
@@ -944,20 +944,30 @@ class Workflow:
             text_colour = self._status_text_colour(bg)
             border = None
 
-        style_bits = [
-            "display:inline-block",
-            "padding:2px 8px",
-            "border-radius:3px",
-            "font-size:12px",
-            "font-weight:600",
-            "text-transform:none",
-            "line-height:1.4",
-            f"background-color:{bg}",
-            f"color:{text_colour}",
-        ]
-        if border:
-            style_bits.append(f"border:1px solid {border}")
-        self._append_style(element, "; ".join(style_bits) + ";")
+        display_text = element.get_text(strip=True) or element.get("title") or "Status"
+        safe_text = html.escape(display_text)
+        border_style = f"border:1px solid {border};" if border else "border:0;"
+        border_radius = "border-radius:3px;"
+        table_style = (
+            "border-collapse:separate; border-spacing:0; display:inline-table; "
+            "margin-right:4px; vertical-align:middle;"
+        )
+        td_style = (
+            f"padding:2px 8px; mso-padding-alt:0px 8px 0px 8px; {border_style} {border_radius} "
+            f"background-color:{bg}; color:{text_colour}; font-size:12px; font-weight:600; "
+            "text-transform:none; line-height:1.3; mso-line-height-rule:exactly;"
+        )
+        td_attrs = f'bgcolor="{bg}" style="{td_style}"'
+        table_html = (
+            f'<table role="presentation" cellspacing="0" cellpadding="0" '
+            f'style="{table_style}"><tr><td {td_attrs}>{safe_text}</td></tr></table>'
+        )
+        replacement = BeautifulSoup(table_html, "html.parser")
+        table_tag = replacement.find("table")
+        if table_tag is not None:
+            element.replace_with(table_tag)
+        else:
+            self._append_style(element, "display:inline-block;")
 
     def _pick_colour_from_element(self, element: Tag) -> str | None:
         for attr in ("data-color", "data-bgcolor", "data-background"):
