@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 
 from .defaults import INFO_HEADER, LABEL_STATUS_MAP
 
+_DONE_STATUS_NAMES = {"done", "closed", "resolved", "cancelled"}
+
 def build_confluence_storage(
     jira_base_url: str,
     filter_id: str,
@@ -107,19 +109,17 @@ def build_confluence_storage(
             if components
             else "None"
         )
-        issue_heading = (
-            f"<h3><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}"
-            f" ({safe_status})</h3>"
-        )
+        issue_heading = f"<h3><a href=\"{html.escape(url)}\">{safe_key}</a>: {safe_summary}</h3>"
         flag_html = _impediment_badge() if is_impediment else ""
         assignee_line = (
             "<p>"
             f"{flag_html}"
+            f"<strong>Status:</strong> {_format_status_value(status)} | "
             f"<strong>Assignee:</strong> {assignee_html} | "
-            f"<strong>Reporter:</strong> {reporter_html} | "
             f"<strong>Priority:</strong> {priority_html} | "
             f"<strong>Labels:</strong> {labels_html} | "
-            f"<strong>Components:</strong> {components_html}"
+            f"<strong>Components:</strong> {components_html} | "
+            f"<strong>Reporter:</strong> {reporter_html}"
             "</p>"
         )
         product_html = html.escape(product or "Unknown")
@@ -187,6 +187,24 @@ def _format_labels(labels: Tuple[str, ...]) -> str:
         else:
             formatted.append(html.escape(label))
     return ", ".join(formatted)
+
+
+def _format_status_value(status: str) -> str:
+    if not status:
+        return "Unknown"
+    normalized = status.strip()
+    if not normalized:
+        return "Unknown"
+    if normalized.lower() in _DONE_STATUS_NAMES:
+        safe = html.escape(normalized)
+        return (
+            '<ac:structured-macro ac:name="status">'
+            '<ac:parameter ac:name="colour">Green</ac:parameter>'
+            f'<ac:parameter ac:name="title">{safe}</ac:parameter>'
+            '<ac:parameter ac:name="subtle">false</ac:parameter>'
+            "</ac:structured-macro>"
+        )
+    return html.escape(normalized)
 
 
 def _wrap_panel(body_html: str) -> str:
