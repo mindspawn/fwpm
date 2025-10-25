@@ -89,6 +89,10 @@ DEFAULT_STATUS_HEX = "#7A869A"
 SUBTLE_BACKGROUND_HEX = "#DFE1E6"
 SUBTLE_BORDER_HEX = "#A5ADBA"
 DEFAULT_TEXT_COLOR = "#172B4D"
+INFO_PANEL_STYLE = (
+    "margin:16px 0; border:1px solid #0052CC; border-radius:3px; "
+    "background-color:#E9F2FF; padding:12px 16px; color:" + DEFAULT_TEXT_COLOR + ";"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -842,19 +846,13 @@ class Workflow:
         icon = params.get("icon", "information").capitalize()
         body = macro.find("ac:rich-text-body")
         panel = soup.new_tag("div")
-        self._append_style(
-            panel,
-            (
-                "margin:16px 0; border-left:4px solid #0052CC; background-color:#E9F2FF; "
-                "border:1px solid #B3BAC5; border-radius:3px; padding:12px 16px; "
-                f"color:{DEFAULT_TEXT_COLOR};"
-            ),
-        )
+        self._set_style(panel, INFO_PANEL_STYLE)
         heading = soup.new_tag("div")
         self._append_style(heading, "font-weight:600; margin-bottom:8px;")
         heading.string = icon
         panel.append(heading)
         content = soup.new_tag("div")
+        self._append_style(content, "margin:0; padding:0; background-color:#E9F2FF;")
         if body:
             for child in list(body.contents):
                 content.append(child.extract())
@@ -877,20 +875,23 @@ class Workflow:
             )
 
         for panel in soup.find_all(is_info_panel):
-            self._append_style(
-                panel,
-                (
-                    "margin:16px 0; border-left:4px solid #0052CC; background-color:#E9F2FF; "
-                    "border:1px solid #B3BAC5; border-radius:3px; padding:12px 16px; "
-                    f"color:{DEFAULT_TEXT_COLOR};"
-                ),
-            )
+            self._set_style(panel, INFO_PANEL_STYLE)
+            container = panel.select_one(".aui-message")
+            if container:
+                self._append_style(
+                    container,
+                    "margin:0; border:0; background-color:transparent; padding:0; border-collapse:collapse; width:100%;",
+                )
             icon = panel.select_one(".confluence-information-macro-icon")
             if icon:
                 self._append_style(icon, "display:none;")
             body = panel.select_one(".confluence-information-macro-body")
             if body:
-                self._append_style(body, "margin:0; padding:0;")
+                self._append_style(
+                    body,
+                    "margin:0; padding:0; border:0; background-color:#E9F2FF; color:"
+                    f"{DEFAULT_TEXT_COLOR};",
+                )
 
     def _apply_status_styles(self, element: Tag, colour: str | None, subtle: bool) -> None:
         colour_hex = self._normalise_colour(colour) or DEFAULT_STATUS_HEX
@@ -979,6 +980,10 @@ class Workflow:
             element["style"] = f"{existing} {addition};"
         else:
             element["style"] = f"{addition};"
+
+    def _set_style(self, element: Tag, styles: str) -> None:
+        clean = styles.strip().rstrip(";")
+        element["style"] = f"{clean};" if clean else ""
 
 
 class _HTMLStructureValidator(HTMLParser):
