@@ -55,7 +55,8 @@ table { border-collapse: collapse; }
 .aui-lozenge-current { background-color: #ffab00 !important; }
 .aui-lozenge-moved { background-color: #6554C0 !important; }
 .aui-lozenge-error, .aui-lozenge-removed { background-color: #ff5630 !important; }
-.aui-lozenge { background-color: #7A869A; }
+.aui-lozenge { background-color: #7A869A; color: #fff !important; }
+.status-macro { color: #fff !important; }
 .toc-macro { margin-bottom: 16px; }
 </style>
 """
