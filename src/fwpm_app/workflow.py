@@ -244,15 +244,13 @@ class Workflow:
             logger.warning("Cannot send email: Confluence page id missing in response.")
             return
 
+        rendered_from_export: str | None = None
         try:
             page_view = self.confluence_client.get_page_export_view(page_id)
-            rendered_html = (
-                (((page_view.get("body") or {}).get("export_view") or {}).get("value"))
-                or storage_body
-            )
+            rendered_from_export = (((page_view.get("body") or {}).get("export_view") or {}).get("value"))
         except Exception as exc:  # pragma: no cover - network failures
             logger.warning("Failed to fetch rendered Confluence HTML: %s", exc)
-            rendered_html = storage_body
+            rendered_from_export = None
 
         links = page_result.get("_links", {}) or {}
         base_link = links.get("base")
@@ -268,7 +266,8 @@ class Workflow:
             base_href = base_link.rstrip("/") + "/"
         base_tag = f"<base href=\"{html.escape(base_href)}\" />" if base_href else ""
 
-        rendered_html = self._enhance_email_html(rendered_html, storage_body)
+        preferred_html = storage_body or rendered_from_export or ""
+        rendered_html = self._enhance_email_html(preferred_html, storage_body)
 
         html_message = (
             "<html><head>"
@@ -849,10 +848,7 @@ class Workflow:
         title = params.get("title") or (macro.get_text() or "").strip() or "Status"
         colour = params.get("colour") or params.get("color") or ""
         subtle = params.get("subtle", "").lower() == "true"
-        span = soup.new_tag("span")
-        span.string = title
-        self._apply_status_styles(span, colour, subtle)
-        return span
+        return self._build_status_badge(soup, title, colour, subtle)
 
     def _build_info_panel_from_macro(self, soup: BeautifulSoup, macro: Tag) -> Tag:
         params = {
@@ -901,10 +897,16 @@ class Workflow:
 
     def _style_status_macros(self, soup: BeautifulSoup) -> None:
         for status in soup.select(".status-macro, .aui-lozenge"):
-            classes = status.get("class", [])
+            classes = status.get("class", []) or []
             subtle = "aui-lozenge-subtle" in classes if classes else False
+            if not subtle:
+                subtle_attr = status.get("data-subtle") or status.get("data-subtle-by-status")
+                if isinstance(subtle_attr, str):
+                    subtle = subtle_attr.lower() == "true"
             colour = self._pick_colour_from_element(status)
-            self._apply_status_styles(status, colour, subtle)
+            text = status.get_text(strip=True) or status.get("title") or "Status"
+            badge = self._build_status_badge(soup, text, colour, subtle)
+            status.replace_with(badge)
 
     def _style_info_macros(self, soup: BeautifulSoup) -> None:
         panels = soup.select(".confluence-information-macro")
@@ -933,7 +935,13 @@ class Workflow:
         for selector in selectors:
             for node in list(soup.select(selector)):
                 node.decompose()
-    def _apply_status_styles(self, element: Tag, colour: str | None, subtle: bool) -> None:
+    def _build_status_badge(
+        self,
+        soup: BeautifulSoup,
+        text: str,
+        colour: str | None,
+        subtle: bool,
+    ) -> Tag:
         colour_hex = self._normalise_colour(colour) or DEFAULT_STATUS_HEX
         if subtle:
             bg = SUBTLE_BACKGROUND_HEX
@@ -944,8 +952,7 @@ class Workflow:
             text_colour = self._status_text_colour(bg)
             border = None
 
-        display_text = element.get_text(strip=True) or element.get("title") or "Status"
-        safe_text = html.escape(display_text)
+        safe_text = html.escape(text)
         border_style = f"border:1px solid {border};" if border else "border:0;"
         border_radius = "border-radius:3px;"
         table_style = (
@@ -969,10 +976,10 @@ class Workflow:
         )
         replacement = BeautifulSoup(table_html, "html.parser")
         table_tag = replacement.find("table")
-        if table_tag is not None:
-            element.replace_with(table_tag)
-        else:
-            self._append_style(element, "display:inline-block;")
+        if table_tag is None:
+            table_tag = soup.new_tag("span")
+            table_tag.string = text
+        return table_tag
 
     def _pick_colour_from_element(self, element: Tag) -> str | None:
         for attr in ("data-color", "data-bgcolor", "data-background"):
