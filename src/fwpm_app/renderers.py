@@ -10,6 +10,7 @@ from urllib.parse import quote_plus
 from zoneinfo import ZoneInfo
 
 from .defaults import INFO_HEADER, LABEL_STATUS_MAP
+from bs4 import BeautifulSoup
 
 _DONE_STATUS_NAMES = {"done", "closed", "resolved", "cancelled"}
 
@@ -61,16 +62,15 @@ def build_confluence_storage(
         "<ac:rich-text-body/>"
         "</ac:structured-macro>"
     )
-    header_html = f"<p>{html.escape(INFO_HEADER)}</p>"
-    fields_row = (
-        "<p>"
-        f"<strong>Generated on:</strong> {html.escape(timestamp)} | "
-        f"<strong>Filter:</strong> <a href=\"{filter_url}\">{safe_filter_id}</a>{filter_name_fragment} | "
-        f"<strong>Total issues:</strong> {total_issues}"
-        "</p>"
+    panel_body = _assemble_info_panel_body(
+        info_html=INFO_HEADER,
+        generated_html=f"<strong>Generated:</strong> {html.escape(timestamp)}",
+        filter_html=(
+            f"<strong>Filter:</strong> <a href=\"{filter_url}\">{safe_filter_id}</a>{filter_name_fragment}"
+        ),
+        total_html=f"<strong>Total issues:</strong> {total_issues}",
+        guidance_html="<p>Review all generated notes for accuracy before wider sharing.</p>",
     )
-    guidance_html = "<p>Review all generated notes for accuracy before wider sharing.</p>"
-    panel_body = "".join([header_html, fields_row, guidance_html])
     info_section = _build_info_panel(panel_body)
 
     sections = []
@@ -202,6 +202,35 @@ def _format_status_value(status: str) -> str:
             "</ac:structured-macro>"
         )
     return html.escape(normalized)
+
+
+def _assemble_info_panel_body(
+    info_html: str,
+    generated_html: str,
+    filter_html: str,
+    total_html: str,
+    guidance_html: str,
+) -> str:
+    soup = BeautifulSoup("", "html.parser")
+    container = soup.new_tag("div")
+
+    if info_html:
+        info_fragment = BeautifulSoup(info_html, "html.parser")
+        for child in info_fragment.contents:
+            container.append(child)
+
+    row = soup.new_tag("p")
+    row.append(BeautifulSoup(f"{generated_html} | ", "html.parser"))
+    row.append(BeautifulSoup(f"{filter_html} | ", "html.parser"))
+    row.append(BeautifulSoup(total_html, "html.parser"))
+    container.append(row)
+
+    if guidance_html:
+        guidance_fragment = BeautifulSoup(guidance_html, "html.parser")
+        for child in guidance_fragment.contents:
+            container.append(child)
+
+    return str(container)
 
 
 def _wrap_panel(body_html: str) -> str:
